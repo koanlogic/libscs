@@ -1,0 +1,28 @@
+# --crypto={openssl,cyassl,...}
+
+# Helper (OpenSSL is the default).
+makl_args_def "crypto" \
+                  "=(openssl or cyassl)" \
+                  "openssl" \
+                  "Select crypto toolkit to use."
+
+# Hook function.
+function __makl_crypto ()
+{
+    [ $# -eq 1 ] || \
+        makl_err 1 "Supply one of 'cyassl' or 'openssl' to --crypto="
+
+    if [ "$1" = "cyassl" ]
+    then
+        makl_unset_var "USE_OPENSSL"    # cancel default
+        makl_set_var "USE_CYASSL"
+    elif [ "$1" = "openssl" ]
+    then
+        makl_set_var "USE_OPENSSL"
+    else
+        makl_err 1 "Unsupported crypto toolkit $1."
+    fi
+}
+
+# Default.
+makl_set_var "USE_OPENSSL"
