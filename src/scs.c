@@ -26,7 +26,7 @@ static struct
     int (*init) (void);
     int (*gen_iv) (scs_t *scs);
     int (*enc) (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out);
-    int (*tag) (scs_t *scs);
+    int (*tag) (scs_t *scs, const char *);
     void (*term) (void);
 } D = {
 #ifdef USE_CYASSL
@@ -164,9 +164,16 @@ int scs_outbound (scs_t *scs, const char *state)
     if ((rc = prep_tag(scs, &auth_blob)) != SCS_OK)
         goto err;
 
-    printf("AUTH_BLOB: %s", auth_blob);
+    /* Create auth tag. */
+    if (D.tag(scs, auth_blob))
+    {
+        rc = SCS_ERR_CRYPTO;
+        goto err;
+    }
 
-    /* TODO tag. */
+    print_buf("TAG", scs->tag, scs->tag_sz);
+
+    free(auth_blob), auth_blob = NULL;
 
     return SCS_OK;
 err:
