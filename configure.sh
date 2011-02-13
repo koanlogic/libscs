@@ -5,6 +5,7 @@ makl_args_init "$@"
 
 # Source option hooks.
 . build/opt_crypto
+. build/opt_gnu_debug
 
 # libscs-x.y.z
 makl_pkg_name "libscs"

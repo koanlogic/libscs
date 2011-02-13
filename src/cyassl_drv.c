@@ -3,6 +3,7 @@
 #include <ctc_hmac.h>
 #include <ctc_aes.h>
 #include <random.h>
+#include <coding.h>
 
 #include "cyassl_drv.h"
 
@@ -38,7 +39,7 @@ int cyassl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
 int cyassl_tag (scs_t *scs)
 {
     /* TODO */
-    memset(scs->tag, 0xff, sizeof scs->tag);
+    memset(scs->tag, sizeof scs->tag, 120);
     return 0;
 }
 

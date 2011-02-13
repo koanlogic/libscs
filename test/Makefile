@@ -6,6 +6,5 @@ include ../Makefile.conf
 PROG = test
 SRCS = main.c
 LDADD = $(SRCDIR)/src/libscs.a
-CFLAGS += -ggdb
 
 include prog.mk

@@ -35,7 +35,7 @@ typedef enum
 
 typedef struct
 {
-    int in_use;
+    int avail;
 
     /* Opaque (unique) identifier for the cipherset/keyset in use. */
     char tid[64];   
@@ -72,6 +72,7 @@ typedef struct
     size_t tag_sz;
 
     time_t atime, max_session_age;
+    char atime_s[32];
 
     uint8_t iv[128];
 } scs_t;

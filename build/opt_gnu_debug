@@ -1,0 +1,13 @@
+# --gnu_debug
+
+# Helper
+makl_args_def "gnu_debug" \
+                  ""    \
+                  ""    \
+                  "Enable debugging with GCC/GBD"
+
+# Hook function.
+function __makl_gnu_debug ()
+{
+    makl_add_var_mk "CFLAGS" "-ggdb"
+}

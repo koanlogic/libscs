@@ -7,7 +7,9 @@
 #include <stdlib.h> 
 #include <time.h>
 #include <string.h>
+#include <inttypes.h>
 #include "scs.h"
+#include "base64.h"
 #include "conf.h"
 #ifdef HAVE_LIBZ
   #include <zlib.h>
@@ -43,6 +45,8 @@ static int init_keyset (scs_keyset_t *keyset, const char *tid,
         int comp);
 static int comp (const char *in, uint8_t *out, size_t *pout_sz);
 static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity);
+static int get_atime (scs_t *scs);
+static int prep_tag (scs_t *scs, char **pauth_blob);
 static void print_buf (const char *label, const uint8_t *b, size_t b_sz);
 
 /**
@@ -75,8 +79,8 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
 
     s->max_session_age = max_session_age;
 
-    s->cur_keyset.in_use = 1;
-    s->prev_keyset.in_use = 0;
+    s->cur_keyset.avail = 1;
+    s->prev_keyset.avail = 0;
 
     *ps = s;
 
@@ -108,6 +112,7 @@ int scs_outbound (scs_t *scs, const char *state)
     scs_err_t rc;
     size_t state_sz;
     scs_keyset_t *ks;
+    char *auth_blob = NULL;
 
     /* TODO preconditions. */
 
@@ -122,8 +127,8 @@ int scs_outbound (scs_t *scs, const char *state)
         return SCS_ERR_CRYPTO;
 
     /*  2. atime = NOW */
-    if ((scs->atime = time(NULL)) == (time_t) -1)
-        return SCS_ERR_OS;
+    if ((rc = get_atime(scs)) != SCS_OK)
+        return rc;
 
     /* Make room for the working buffer, taking care for extra padding space. */
     state_sz = strlen(state);
@@ -146,18 +151,26 @@ int scs_outbound (scs_t *scs, const char *state)
     if (rc != SCS_OK)
         goto err;
 
+
     /* 3.2. data = Enc(Comp(state)) 
      * 4. tag = HMAC(data||atime||tid||iv) */
-    if (D.enc(scs, scs->data, scs->data_sz, scs->data) || D.tag(scs))
+    if (D.enc(scs, scs->data, scs->data_sz, scs->data))
     {
         rc = SCS_ERR_CRYPTO;
         goto err;
     }
 
-    print_buf("TAG", scs->tag, sizeof scs->tag);
+    /* Prepare "data||atime||tid||iv" for tagging. */
+    if ((rc = prep_tag(scs, &auth_blob)) != SCS_OK)
+        goto err;
+
+    printf("AUTH_BLOB: %s", auth_blob);
+
+    /* TODO tag. */
 
     return SCS_OK;
 err:
+    free(auth_blob);
     scs_reset_atoms(scs);   /* Cleanup garbage. */
     return rc;
 }
@@ -249,7 +262,7 @@ static void print_buf (const char *label, const uint8_t *b, size_t b_sz)
         if (i % 8 == 0)
             printf("\n");
 
-        printf("%02X ", b[i]);
+        printf("%02x ", b[i]);
     }
     printf("\n</%s>\n", label);
 }
@@ -292,3 +305,81 @@ err:
     return rc;
 }
 
+static int prep_tag (scs_t *scs, char **pauth_blob)
+{
+    size_t i, tot_sz = 0;
+    char *auth_blob = NULL, *p;
+    scs_keyset_t *ks = &scs->cur_keyset;
+    enum { NUM_PIECES = 4 };
+    struct {
+        char *raw;
+        size_t raw_sz;
+        size_t encoded_sz;
+    } A[NUM_PIECES] = {
+        { 
+            (char *) scs->data,
+            scs->data_sz,
+            BASE64_LENGTH(scs->data_sz)
+        },
+        { 
+            scs->atime_s,
+            strlen(scs->atime_s),
+            BASE64_LENGTH(strlen(scs->atime_s))
+        },
+        {
+            ks->tid,
+            strlen(ks->tid),
+            BASE64_LENGTH(strlen(ks->tid))
+        },
+        {
+            (char *) scs->iv,
+            ks->block_sz,
+            BASE64_LENGTH(ks->block_sz)
+        }
+    };
+
+    /* 
+     * Compute total length of the authentication blob and make room for it. 
+     * Add 3 extra chars for fields separators and 1 more to please the base64
+     * encoder.
+     */
+    for (i = 0; i < NUM_PIECES; ++i)
+        tot_sz += A[i].encoded_sz;
+    tot_sz += (3 + 1);
+
+    if ((auth_blob = malloc(tot_sz)) == NULL)
+        return SCS_ERR_MEM;
+
+    /* Handle each field's encoding and concatenation. */
+    for (p = auth_blob, i = 0; i < NUM_PIECES; ++i)
+    {
+        base64_encode(A[i].raw, A[i].raw_sz, p, tot_sz);
+
+        tot_sz -= A[i].encoded_sz;
+        p += A[i].encoded_sz;
+
+        /* Add the '|' separator after each field but the last one. */
+        if (i != NUM_PIECES - 1)
+        {
+            *p++ = '|';
+            --tot_sz;
+        }
+    }
+
+    *pauth_blob = auth_blob;
+
+    return 0;
+}
+
+static int get_atime (scs_t *scs)
+{
+    if ((scs->atime = time(NULL)) == (time_t) -1)
+        return SCS_ERR_OS;
+
+    /* Get string representation of atime which will be used later on when 
+     * creating the authentication tag. */
+    (void) snprintf(scs->atime_s, sizeof scs->atime_s, 
+            "%"PRIdMAX, (intmax_t) scs->atime);
+
+    return SCS_OK;
+}
