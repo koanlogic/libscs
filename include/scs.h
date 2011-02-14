@@ -9,9 +9,13 @@
 #include <stdint.h>
 #include <time.h>
 #include "conf.h"
+#include "base64.h"
 
 /* Maximum sizeof Cookie (TODO shorten to take care of attributes). */
 #define SCS_COOKIE_SIZE_MAX 4096
+
+/* Maximum length of transform identifier (TODO override via configure). */
+#define SCS_TID_MAX 64
 
 typedef enum
 {
@@ -38,7 +42,7 @@ typedef struct
     int avail;
 
     /* Opaque (unique) identifier for the cipherset/keyset in use. */
-    char tid[64];   
+    char tid[SCS_TID_MAX];
 
     /* Cipherset identifier. */
     scs_cipherset_t cipherset;
@@ -64,24 +68,30 @@ typedef struct
     /* Current and previously active keyset. */
     scs_keyset_t cur_keyset, prev_keyset;
 
-    /* Protocol atoms. */
+    /* Protocol atoms in raw and Base-64 encoded form. */
     uint8_t *data;
     size_t data_sz, data_capacity;
+    char *b64_data;
 
     uint8_t tag[64];
     size_t tag_sz;
+    char b64_tag[BASE64_LENGTH(64) + 1];
 
     time_t atime, max_session_age;
-    char atime_s[32];
+    char s_atime[32];
+    char b64_atime[BASE64_LENGTH(32) + 1];
 
     uint8_t iv[128];
+    char b64_iv[BASE64_LENGTH(128) + 1];
+
+    char b64_tid[BASE64_LENGTH(SCS_TID_MAX) + 1];
 } scs_t;
 
 int scs_init (const char *, scs_cipherset_t, const uint8_t *, const uint8_t *,
         int, time_t, scs_t **);
 void scs_term (scs_t *);
-int scs_inbound (scs_t *);
-int scs_outbound (scs_t *, const char *);
+int scs_save (scs_t *, const char *);
+int scs_restore (scs_t *);
 void scs_reset_atoms (scs_t *);
 
 /* TODO getter/setter methods */

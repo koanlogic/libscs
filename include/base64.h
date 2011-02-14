@@ -19,7 +19,6 @@
 #ifndef BASE64_H
 # define BASE64_H
 
-/* Get size_t. */
 # include <stddef.h>
 
 /* This uses that the expression (n+(k-1))/k means the smallest
