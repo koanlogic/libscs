@@ -22,6 +22,10 @@ int cyassl_gen_iv (scs_t *scs)
 
     RNG_GenerateBlock(&rng, scs->iv, ks->block_sz);
 
+#ifdef FIXED_PARAMS
+    memset(scs->iv, 0, ks->block_sz);
+#endif  /* FIXED_PARAMS */
+
     return 0;
 }
 

@@ -17,13 +17,9 @@
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
 #ifndef BASE64_H
-# define BASE64_H
+#define BASE64_H
 
-# include <stddef.h>
-
-/* This uses that the expression (n+(k-1))/k means the smallest
-   integer >= n/k, i.e., the ceiling of n/k.  */
-# define BASE64_LENGTH(inlen) ((((inlen) + 2) / 3) * 4)
+#include <stddef.h>
 
 extern int isbase64(char ch);
 

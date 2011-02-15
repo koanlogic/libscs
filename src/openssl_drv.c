@@ -1,5 +1,6 @@
 #include <sys/time.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -10,18 +11,13 @@
 #include <openssl/opensslv.h>
 #include "openssl_drv.h"
 
-typedef struct
-{
-    pid_t pid;
-    long int t1, t2;
-    void *stack;
-} rng_seed_t;
-
 static int rng_init (void);
 
 int openssl_init (void)
 {
-    OpenSSL_add_all_algorithms();
+    /* Add just what is strictly needed. */
+    EVP_add_cipher(EVP_aes_128_cbc());
+    EVP_add_digest(EVP_sha1());
 
     return 0;
 }
@@ -35,6 +31,10 @@ int openssl_gen_iv (scs_t *scs)
 
     if (!RAND_bytes(scs->iv, ks->block_sz))
         return -1;
+
+#ifdef FIXED_PARAMS
+    memset(scs->iv, 0, ks->block_sz);
+#endif  /* FIXED_PARAMS */
 
     return 0;
 }
@@ -57,7 +57,7 @@ int openssl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
 
     EVP_CIPHER_CTX_cleanup(&c);
 
-    assert(in_sz + ks->block_sz == (size_t) out_sz);
+    assert(ENC_LENGTH(in_sz, ks->block_sz) == (size_t) out_sz);
 
     return 0;
 }
@@ -92,18 +92,13 @@ void openssl_term (void)
 
 static int rng_init (void)
 {
-    struct timeval tv;
-    rng_seed_t seed;
+    size_t i;
+    uint32_t r[32]; /* 1024-bit */
 
-    if (gettimeofday(&tv, NULL) == -1)
-        return -1;
+    for (i = 0; i < sizeof r; ++i)
+        r[i] = arc4random();
 
-    seed.pid = getpid();
-    seed.t1 = tv.tv_sec;
-    seed.t2 = tv.tv_usec;
-    seed.stack = (void *) &seed;
-
-    RAND_seed((const void *) &seed, sizeof seed);
+    RAND_seed(r, sizeof r);
 
     return 0;
 }

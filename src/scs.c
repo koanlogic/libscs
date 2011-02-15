@@ -8,9 +8,9 @@
 #include <time.h>
 #include <string.h>
 #include <inttypes.h>
+#include "conf.h"
 #include "scs.h"
 #include "base64.h"
-#include "conf.h"
 #ifdef HAVE_LIBZ
   #include <zlib.h>
 #endif  /* HAVE_LIBZ */
@@ -152,9 +152,9 @@ int scs_save (scs_t *scs, const char *state)
         return rc;
 
     /* Make room for the working buf, taking care for IV, padding and potential
-     * exansion due to compress overhead. */
+     * expansion due to compress overhead (worst case). */
     state_sz = strlen(state);
-    scs->data_capacity = state_sz + (2 * ks->block_sz) + 1024;
+    scs->data_capacity = ENC_LENGTH(COMP_LENGTH(state_sz), ks->block_sz);
     if ((rc = alloc_data(scs)) != SCS_OK)
         goto err;
 
@@ -234,6 +234,19 @@ int scs_restore (scs_t *scs)
     return 0;
 }
 
+/* Zlib's compression method, an LZ77 variant called deflation, emits 
+ * compressed data as a sequence of blocks.  Various block types are allowed, 
+ * one of which is stored blocks -- these are simply composed of the raw input 
+ * data plus a few header bytes.  In the worst possible case, where the other 
+ * block types would expand the data, deflation falls back to stored 
+ * (uncompressed) blocks.  Thus for the default settings used by deflateInit(), 
+ * compress(), and compress2(), the only expansion is an overhead of five bytes
+ * per 16 KB block (about 0.03%), plus a one-time overhead of six bytes for the
+ * entire stream.  Even if the last or only block is smaller than 16 KB, the 
+ * overhead is still five bytes.  In the absolute worst case of a single-byte 
+ * input stream, the overhead therefore amounts to 1100% (eleven bytes of 
+ * overhead, one byte of actual data).  For larger stream sizes, the overhead 
+ * approaches the limiting value of 0.03%.  */
 static int comp (const char *in, uint8_t *out, size_t *pout_sz)
 {
 #ifdef HAVE_LIBZ
@@ -255,8 +268,7 @@ static int comp (const char *in, uint8_t *out, size_t *pout_sz)
 
     /* We can't overflow the output buffer as long as '*pout_sz' is the
      * real size of 'out'. */
-    ret = deflate(&zstr, Z_FINISH);
-    if (ret != Z_STREAM_END)
+    if ((ret = deflate(&zstr, Z_FINISH)) != Z_STREAM_END)
         goto err;
 
     *pout_sz = zstr.total_out;
@@ -269,7 +281,7 @@ err:
     deflateEnd(&zstr);
     return SCS_ERR_COMPRESSION;
 #else
-    assert(!"I'm not supposed to get there...");
+    assert(!"I'm not supposed to get there without zlib...");
 #endif  /* HAVE_LIBZ */
 }
 
@@ -277,8 +289,8 @@ static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity)
 {
     size_t pad_len = block_sz - (*sz % block_sz);
 
-    /* This padding method is well defined if and only if k (i.e. pad_len) 
-     * is less than 256. */
+    /* RFC 3852, Section 6.3: "This padding method is well defined if 
+     * and only if k (i.e. pad_len) is less than 256." */
     assert(pad_len < 256);  
 
     if (*sz + pad_len > capacity)
@@ -288,7 +300,7 @@ static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity)
     {
         /* If the length of (compressed) state is not a multiple of the 
          * block size, its value will be filled with padding bytes of equal 
-         * value as the pad length -- see Section 6.3 of [CMS]. */
+         * value as the pad length. */
         memset(b + *sz, pad_len, pad_len);
         *sz += pad_len;
     }
@@ -425,6 +437,10 @@ static int get_atime (scs_t *scs)
 {
     if ((scs->atime = time(NULL)) == (time_t) -1)
         return SCS_ERR_OS;
+
+#ifdef FIXED_PARAMS
+    scs->atime = 123456789;
+#endif  /* FIXED_PARAMS */
 
     /* Get string representation of atime which will be used later on when 
      * creating the authentication tag. */

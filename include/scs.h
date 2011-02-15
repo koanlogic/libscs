@@ -11,6 +11,23 @@
 #include "conf.h"
 #include "base64.h"
 
+/* The resulting ciphertext size is computed as the size of the plaintext 
+ * extended to the next block. */
+#define ENC_LENGTH(inlen, blocklen) \
+    ((inlen) + (blocklen) - ((inlen) % (blocklen)))
+
+/* This uses that the expression (n+(k-1))/k meaning the smallest
+ * integer >= n/k, i.e., the ceiling of n/k.  */
+#define BASE64_LENGTH(inlen)        \
+    ((((inlen) + 2) / 3) * 4)
+
+/* For the default settings used by deflateInit(), the only expansion is an 
+ * overhead of five bytes per 16 KB block (about 0.03%), plus a one-time 
+ * overhead of six bytes for the entire stream. Even if the last or only block 
+ * is smaller than 16 KB, the overhead is still five bytes. */
+#define COMP_LENGTH(inlen)          \
+    ((inlen) + 6 + (5 * (((inlen) % 16384) + 1)))
+
 /* Maximum sizeof Cookie (TODO shorten to take care of attributes). */
 #define SCS_COOKIE_SIZE_MAX 4096
 
