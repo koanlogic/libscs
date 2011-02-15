@@ -38,7 +38,7 @@ int cyassl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
 
 int cyassl_tag (scs_t *scs, const char *auth_blob)
 {
-    Hmac hmac; 
+    Hmac hmac;
     scs_keyset_t *ks = &scs->cur_keyset;
 
     HmacSetKey(&hmac, SHA, ks->hkey, ks->hkey_sz);

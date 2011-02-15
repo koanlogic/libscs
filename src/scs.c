@@ -36,7 +36,11 @@ static struct
     cyassl_tag,
     cyassl_term
 #elif defined (USE_OPENSSL)
-    /* TODO */
+    openssl_init,
+    openssl_gen_iv,
+    openssl_enc,
+    openssl_tag,
+    openssl_term
 #endif
 };
 
@@ -67,6 +71,10 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     scs_err_t rc;
 
     /* TODO check preconditions. */
+
+    /* Initialize the crypto toolkit. */
+    if (D.init() == -1)
+        return SCS_ERR_CRYPTO;
 
     /* Make room for the SCS context structure. */
     if ((s = malloc(sizeof *s)) == NULL)
@@ -111,6 +119,8 @@ void scs_term (scs_t *s)
         free(s);
     }
 
+    D.term();
+
     return;
 }
 
@@ -141,9 +151,10 @@ int scs_save (scs_t *scs, const char *state)
     if ((rc = get_atime(scs)) != SCS_OK)
         return rc;
 
-    /* Make room for the working buffer, taking care for extra padding space. */
+    /* Make room for the working buf, taking care for IV, padding and potential
+     * exansion due to compress overhead. */
     state_sz = strlen(state);
-    scs->data_capacity = state_sz + ks->block_sz;
+    scs->data_capacity = state_sz + (2 * ks->block_sz) + 1024;
     if ((rc = alloc_data(scs)) != SCS_OK)
         goto err;
 
@@ -165,7 +176,7 @@ int scs_save (scs_t *scs, const char *state)
     if (rc != SCS_OK)
         goto err;
 
-    print_buf("[PADDED]", scs->data, scs->data_sz);
+    //print_buf("[PADDED]", scs->data, scs->data_sz);
 
     /* Encrypt. */
     if (D.enc(scs, scs->data, scs->data_sz, scs->data))
@@ -242,6 +253,8 @@ static int comp (const char *in, uint8_t *out, size_t *pout_sz)
     zstr.next_out = out;
     zstr.avail_out = *pout_sz;
 
+    /* We can't overflow the output buffer as long as '*pout_sz' is the
+     * real size of 'out'. */
     ret = deflate(&zstr, Z_FINISH);
     if (ret != Z_STREAM_END)
         goto err;
@@ -271,7 +284,6 @@ static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity)
     if (*sz + pad_len > capacity)
         return SCS_ERR_MEM;
 
-    /* Nothing to be changed. */
     if (pad_len)
     {
         /* If the length of (compressed) state is not a multiple of the 

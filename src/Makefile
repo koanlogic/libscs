@@ -6,6 +6,9 @@ SRCS = scs.c
 SRCS += base64.c
 ifdef USE_CYASSL
 SRCS += cyassl_drv.c 
-endif
+endif   # USE_CYASSL
+ifdef USE_OPENSSL
+SRCS += openssl_drv.c 
+endif   # USE_OPENSSL
 
 include lib.mk
