@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
-#include "conf.h"
+#include "scs_conf.h"
 #include "base64.h"
 
 /* The resulting ciphertext size is computed as the size of the plaintext 
@@ -16,7 +16,7 @@
 #define ENC_LENGTH(inlen, blocklen) \
     ((inlen) + (blocklen) - ((inlen) % (blocklen)))
 
-/* This uses that the expression (n+(k-1))/k meaning the smallest
+/* This uses that the expression (n+(k-1))/k means the smallest
  * integer >= n/k, i.e., the ceiling of n/k.  */
 #define BASE64_LENGTH(inlen)        \
     ((((inlen) + 2) / 3) * 4)
@@ -24,15 +24,18 @@
 /* For the default settings used by deflateInit(), the only expansion is an 
  * overhead of five bytes per 16 KB block (about 0.03%), plus a one-time 
  * overhead of six bytes for the entire stream. Even if the last or only block 
- * is smaller than 16 KB, the overhead is still five bytes. */
+ * is smaller than 16 KB, the overhead is still five bytes. 
+ * The following macro handles worst case scenario. */
 #define COMP_LENGTH(inlen)          \
     ((inlen) + 6 + (5 * (((inlen) % 16384) + 1)))
 
-/* Maximum sizeof Cookie (TODO shorten to take care of attributes). */
+/* Maximum size of Cookie (TODO shorten to take care of attributes). */
 #define SCS_COOKIE_SIZE_MAX 4096
 
-/* Maximum length of transform identifier (TODO override via configure). */
-#define SCS_TID_MAX 64
+/* Maximum length of various transform identifiers 
+ * (TODO override via configure). */
+#define SCS_TID_MAX     64
+#define SCS_ATIME_MAX   32
 
 typedef enum
 {
@@ -41,7 +44,8 @@ typedef enum
     SCS_ERR_WRONG_CIPHERSET,    /* Bad cipherset supplied to initialization. */
     SCS_ERR_CRYPTO,             /* Crypto toolkit error. */
     SCS_ERR_OS,                 /* OS error. */
-    SCS_ERR_COMPRESSION         /* Compression library error. */
+    SCS_ERR_COMPRESSION,        /* Compression library error. */
+    SCS_ERR_IMPL                /* Hit an implementation limit. */
 } scs_err_t;
 
 typedef enum
@@ -82,6 +86,9 @@ typedef struct
  */
 typedef struct
 {
+    scs_err_t rc;
+    char estr[256];
+
     /* Current and previously active keyset. */
     scs_keyset_t cur_keyset, prev_keyset;
 
@@ -95,8 +102,8 @@ typedef struct
     char b64_tag[BASE64_LENGTH(64) + 1];
 
     time_t atime, max_session_age;
-    char s_atime[32];
-    char b64_atime[BASE64_LENGTH(32) + 1];
+    char s_atime[SCS_ATIME_MAX];
+    char b64_atime[BASE64_LENGTH(SCS_ATIME_MAX) + 1];
 
     uint8_t iv[128];
     char b64_iv[BASE64_LENGTH(128) + 1];
@@ -106,10 +113,9 @@ typedef struct
 
 int scs_init (const char *, scs_cipherset_t, const uint8_t *, const uint8_t *,
         int, time_t, scs_t **);
+int scs_encode (scs_t *, const uint8_t *, size_t);
+int scs_decode (scs_t *);
 void scs_term (scs_t *);
-int scs_save (scs_t *, const char *);
-int scs_restore (scs_t *);
-void scs_reset_atoms (scs_t *);
 
 /* TODO getter/setter methods */
 

@@ -1,6 +1,4 @@
-/*
- * (c) KoanLogic Srl - 2011
- */ 
+/* (c) KoanLogic Srl - 2011 */ 
 
 #include <assert.h>
 #include <stdio.h>
@@ -8,8 +6,10 @@
 #include <time.h>
 #include <string.h>
 #include <inttypes.h>
-#include "conf.h"
+#include <errno.h>
+#include "scs_conf.h"
 #include "scs.h"
+#include "utils.h"
 #include "base64.h"
 #ifdef HAVE_LIBZ
   #include <zlib.h>
@@ -26,7 +26,7 @@ static struct
     int (*init) (void);
     int (*gen_iv) (scs_t *scs);
     int (*enc) (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out);
-    int (*tag) (scs_t *scs, const char *);
+    int (*tag) (scs_t *scs);
     void (*term) (void);
 } D = {
 #ifdef USE_CYASSL
@@ -47,13 +47,53 @@ static struct
 static int init_keyset (scs_keyset_t *keyset, const char *tid, 
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey, 
         int comp);
-static int comp (const char *in, uint8_t *out, size_t *pout_sz);
-static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity);
+static void reset_atoms (scs_t *scs);
+static int get_random_iv (scs_t *scs);
 static int get_atime (scs_t *scs);
-static int alloc_data (scs_t *scs);
-static int prep_tag (scs_t *scs, char **pauth_blob);
-static void print_buf (const char *label, const uint8_t *b, size_t b_sz);
-static void print_cookies (scs_t *scs);
+static int alloc_dyn_data (scs_t *scs, size_t st_sz);
+static int optional_compress (scs_t *scs, const uint8_t *st, size_t st_sz);
+static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz);
+static int encrypt_state (scs_t *scs);
+static int do_pad (scs_t *scs);
+static int create_tag (scs_t *scs);
+
+static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
+static void debug_print_cookies (scs_t *scs);
+
+/**
+ *  \brief  Prepare SCS PDU atoms to save the supplied \p state blob 
+ *          to remote UA.
+ */ 
+int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
+{
+    reset_atoms(scs);
+
+    /* 1.  iv = RAND()
+     * 2.  atime = NOW
+     * 3.  data = Enc(Comp(state))
+     * 4.  tag = HMAC(e(data)||e(atime)||e(tid)||e(iv)) */
+    if (get_random_iv(scs) 
+            || get_atime(scs) 
+            || alloc_dyn_data(scs, state_sz) 
+            || optional_compress(scs, state, state_sz) 
+            || encrypt_state(scs) 
+            || create_tag(scs))
+    {
+        reset_atoms(scs);   /* Remove any garbage. */
+        return -1;
+    }
+
+    debug_print_cookies(scs);
+
+    return 0;
+}
+
+/** \brief  ... */
+int scs_decode (scs_t *scs)
+{
+    /* TODO */
+    return 0;
+}
 
 /**
  *  \brief  Return an SCS context initialized with the supplied tid, keyset,
@@ -77,7 +117,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         return SCS_ERR_CRYPTO;
 
     /* Make room for the SCS context structure. */
-    if ((s = malloc(sizeof *s)) == NULL)
+    if ((s = calloc(1, sizeof *s)) == NULL)
         return SCS_ERR_MEM;
 
     /* Initialize current keyset. */
@@ -88,12 +128,16 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     s->max_session_age = max_session_age;
 
     /* Initialize the .data* fields explicitly, so that free(3) won't die on 
-     * scs_reset_atoms(). */
+     * reset_atoms(). */
     s->data = NULL;
     s->b64_data = NULL;
 
     s->cur_keyset.avail = 1;
     s->prev_keyset.avail = 0;
+
+    /* Error reporting. */
+    s->rc = SCS_OK;
+    s->estr[0] = '\0';
 
     /* Note: .tag_sz will be set by each driver tag() function. */
 
@@ -124,97 +168,147 @@ void scs_term (scs_t *s)
     return;
 }
 
-/**
- *  \brief  Prepare SCS PDU atoms to save the supplied \p state string 
- *          to remote UA.
- */ 
-int scs_save (scs_t *scs, const char *state)
+/* Let the crypto toolkit handle PR generation of the block cipher IV. */
+static int get_random_iv (scs_t *scs)
 {
-    scs_err_t rc;
-    size_t state_sz;
-    scs_keyset_t *ks;
-    char *auth_blob = NULL;
+    /* Error reporting is in charge of the crypto driver. */
+    if (D.gen_iv(scs) == 0)
+        return 0;
 
-    /* TODO check preconditions. */
+    return -1;
+}
 
-    /* Cleanup protocol atoms from a previous run. */
-    scs_reset_atoms(scs);
+static int get_atime (scs_t *scs)
+{
+    char ebuf[128];
 
-    /* Working keyset is the current. */
-    ks = &scs->cur_keyset;
+    if ((scs->atime = time(NULL)) == (time_t) -1)
+    {
+        (void) strerror_r(errno, ebuf, sizeof ebuf);
+        scs_set_error(scs, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+        return -1;
+    }
 
-    /* Randomly generate the block cipher IV. */
-    if (D.gen_iv(scs))
-        return SCS_ERR_CRYPTO;
+#ifdef FIXED_PARAMS
+    scs->atime = 123456789;
+#endif  /* FIXED_PARAMS */
 
-    /* Get 'atime' from the computer's clock. */
-    if ((rc = get_atime(scs)) != SCS_OK)
-        return rc;
+    /* Get string representation of atime which will be used later on when 
+     * creating the authentication tag. */
+    if (snprintf(scs->s_atime, sizeof scs->s_atime, 
+                "%"PRIdMAX, (intmax_t) scs->atime) >= (int) sizeof scs->s_atime)
+    {
+        scs_set_error(scs, SCS_ERR_IMPL, "inflate SCS_ATIME_MAX !");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int alloc_dyn_data (scs_t *scs, size_t state_sz)
+{
+    size_t b64_data_sz;
+    char ebuf[128];
+    scs_keyset_t *ks = &scs->cur_keyset;
 
     /* Make room for the working buf, taking care for IV, padding and potential
      * expansion due to compress overhead (worst case). */
-    state_sz = strlen(state);
     scs->data_capacity = ENC_LENGTH(COMP_LENGTH(state_sz), ks->block_sz);
-    if ((rc = alloc_data(scs)) != SCS_OK)
-        goto err;
 
-    /* Optionally compress the supplied state string before encryption. */
-    if (!ks->comp)
+    /* Also prepare the Base-64 encoding buffer. */
+    b64_data_sz = BASE64_LENGTH(scs->data_capacity) + 1;
+
+    if ((scs->data = calloc(1, scs->data_capacity)) == NULL || 
+            (scs->b64_data = calloc(1, b64_data_sz)) == NULL)
+    {
+        (void) scs_set_error(scs, SCS_ERR_OS, "malloc(3) failed: %s", ebuf);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int optional_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
+{
+    if (scs->cur_keyset.comp)
     {
         scs->data_sz = state_sz;
         memcpy(scs->data, (uint8_t *) state, scs->data_sz);
-    }
-    else 
-    {
-        scs->data_sz = scs->data_capacity;
-        if ((rc = comp(state, scs->data, &scs->data_sz)) != SCS_OK)
-            goto err;
+        return 0;
     }
 
+    scs->data_sz = scs->data_capacity;
+
+    return do_compress(scs, state, state_sz);
+}
+
+static int encrypt_state (scs_t *scs)
+{
     /* Pad data to please the block encyption cipher, if needed. */
-    rc = pad(ks->block_sz, scs->data, &scs->data_sz, scs->data_capacity);
-    if (rc != SCS_OK)
-        goto err;
+    if (do_pad(scs))
+        return -1;
 
-    //print_buf("[PADDED]", scs->data, scs->data_sz);
+    //debug_print_buf("[PADDED]", scs->data, scs->data_sz);
 
     /* Encrypt. */
     if (D.enc(scs, scs->data, scs->data_sz, scs->data))
-    {
-        rc = SCS_ERR_CRYPTO;
-        goto err;
-    }
+        return -1;
 
-    /* Prepare authentication data for tagging. */
-    if ((rc = prep_tag(scs, &auth_blob)) != SCS_OK)
-        goto err;
+    return 0;
+}
 
+static int create_tag (scs_t *scs)
+{
+    size_t i;
+    scs_keyset_t *ks = &scs->cur_keyset;
+    enum { NUM_ATOMS = 4 };
+    struct {
+        char *raw, *enc;
+        size_t raw_sz, enc_sz;
+    } A[NUM_ATOMS] = {
+        { 
+            (char *) scs->data,
+            scs->b64_data,
+            scs->data_sz,
+            BASE64_LENGTH(scs->data_sz)
+        },
+        { 
+            scs->s_atime,
+            scs->b64_atime,
+            strlen(scs->s_atime),
+            sizeof(scs->b64_atime)
+        },
+        {
+            ks->tid,
+            scs->b64_tid,
+            strlen(ks->tid),
+            sizeof(scs->b64_tid)
+        },
+        {
+            (char *) scs->iv,
+            scs->b64_iv,
+            ks->block_sz,
+            BASE64_LENGTH(ks->block_sz)
+        }
+    };    
+    
+    /* Create Base-64 encoded versions of atoms. */
+    for (i = 0; i < NUM_ATOMS; ++i)
+        base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz);
+        
     /* Create auth tag. */
-    if (D.tag(scs, auth_blob))
-    {
-        rc = SCS_ERR_CRYPTO;
-        goto err;
-    }
+    if (D.tag(scs))
+        return -1;
 
-    /* Base-64 encode it. */
+    /* Base-64 encode the auth tag. */
     base64_encode((const char *) scs->tag, scs->tag_sz, 
             scs->b64_tag, sizeof scs->b64_tag);
 
-    print_cookies(scs);
-
-    free(auth_blob), auth_blob = NULL;
-
-    return SCS_OK;
-err:
-    free(auth_blob);
-    scs_reset_atoms(scs);   /* Cleanup garbage. */
-    return rc;
+    return 0;
 }
 
-/**
- *  \brief  Reset protocol atoms values.
- */ 
-void scs_reset_atoms (scs_t *scs)
+/* Reset protocol atoms values. */
+static void reset_atoms (scs_t *scs)
 {
     if (scs == NULL)
         return;
@@ -224,14 +318,9 @@ void scs_reset_atoms (scs_t *scs)
     scs->data_sz = scs->data_capacity = 0;
     scs->tag_sz = 0;
     scs->atime = (time_t) -1;
+    /* TODO */
 
     return;
-}
-
-int scs_restore (scs_t *scs)
-{
-    /* TODO */
-    return 0;
 }
 
 /* Zlib's compression method, an LZ77 variant called deflation, emits 
@@ -247,7 +336,8 @@ int scs_restore (scs_t *scs)
  * input stream, the overhead therefore amounts to 1100% (eleven bytes of 
  * overhead, one byte of actual data).  For larger stream sizes, the overhead 
  * approaches the limiting value of 0.03%.  */
-static int comp (const char *in, uint8_t *out, size_t *pout_sz)
+//static int compress (const char *in, uint8_t *out, size_t *pout_sz)
+static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
 {
 #ifdef HAVE_LIBZ
     int ret;
@@ -257,44 +347,65 @@ static int comp (const char *in, uint8_t *out, size_t *pout_sz)
     zstr.zfree = Z_NULL;
     zstr.opaque = Z_NULL;
 
-    if (deflateInit(&zstr, Z_DEFAULT_COMPRESSION) != Z_OK)
-        return SCS_ERR_COMPRESSION;
+    if ((ret = deflateInit(&zstr, Z_DEFAULT_COMPRESSION)) != Z_OK)
+    {
+        scs_set_error(scs, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
+        return -1;
+    }
 
-    zstr.next_in = (Byte *) in;
-    zstr.avail_in = strlen(in);
+    zstr.next_in = (Bytef *) state;
+    zstr.avail_in = state_sz;
 
-    zstr.next_out = out;
-    zstr.avail_out = *pout_sz;
+    zstr.next_out = scs->data;
+    zstr.avail_out = scs->data_sz;
 
     /* We can't overflow the output buffer as long as '*pout_sz' is the
      * real size of 'out'. */
     if ((ret = deflate(&zstr, Z_FINISH)) != Z_STREAM_END)
-        goto err;
+    {
+        scs_set_error(scs, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
+        goto err; 
+    }
 
-    *pout_sz = zstr.total_out;
+    scs->data_sz = zstr.total_out;
 
     deflateEnd(&zstr);
 
-    return SCS_OK;
+    return 0;
 err:
-    printf("%s\n", zError(ret));
     deflateEnd(&zstr);
-    return SCS_ERR_COMPRESSION;
+    return -1;
 #else
     assert(!"I'm not supposed to get there without zlib...");
 #endif  /* HAVE_LIBZ */
 }
 
-static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity)
+static int do_pad (scs_t *scs)
 {
-    size_t pad_len = block_sz - (*sz % block_sz);
+    uint8_t *b;
+    size_t block_sz, capacity, pad_len, *sz;
+   
+    block_sz = scs->cur_keyset.block_sz;
+    capacity = scs->data_capacity;
+    sz = &scs->data_sz;
+
+    pad_len = block_sz - (*sz % block_sz);
+
+    b = scs->data;
 
     /* RFC 3852, Section 6.3: "This padding method is well defined if 
      * and only if k (i.e. pad_len) is less than 256." */
-    assert(pad_len < 256);  
+    if (pad_len >= 256)
+    {
+        scs_set_error(scs, SCS_ERR_IMPL, "unsupported pad length");
+        return -1;
+    }
 
     if (*sz + pad_len > capacity)
-        return SCS_ERR_MEM;
+    {
+        scs_set_error(scs, SCS_ERR_MEM, "data buffer too small");
+        return -1;
+    }
 
     if (pad_len)
     {
@@ -305,10 +416,10 @@ static int pad (size_t block_sz, uint8_t *b, size_t *sz, size_t capacity)
         *sz += pad_len;
     }
 
-    return SCS_OK;
+    return 0;
 }
 
-static void print_buf (const char *label, const uint8_t *b, size_t b_sz)
+static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz)
 {
     unsigned int i;
 
@@ -361,107 +472,7 @@ err:
     return rc;
 }
 
-static int prep_tag (scs_t *scs, char **pauth_blob)
-{
-    size_t i, tot_sz = 0;
-    char *auth_blob = NULL, *p;
-    scs_keyset_t *ks = &scs->cur_keyset;
-    enum { NUM_PIECES = 4 };
-    struct {
-        char *raw, *encoded;
-        size_t raw_sz, encoded_sz;
-    } A[NUM_PIECES] = {
-        { 
-            (char *) scs->data,
-            scs->b64_data,
-            scs->data_sz,
-            BASE64_LENGTH(scs->data_sz)
-        },
-        { 
-            scs->s_atime,
-            scs->b64_atime,
-            strlen(scs->s_atime),
-            BASE64_LENGTH(strlen(scs->s_atime))
-        },
-        {
-            ks->tid,
-            scs->b64_tid,
-            strlen(ks->tid),
-            BASE64_LENGTH(strlen(ks->tid))
-        },
-        {
-            (char *) scs->iv,
-            scs->b64_iv,
-            ks->block_sz,
-            BASE64_LENGTH(ks->block_sz)
-        }
-    };
-
-    /* 
-     * Compute total length of the authentication blob and make room for it. 
-     * Add 3 extra chars for fields separators and 1 more to please the base64
-     * encoder.
-     */
-    for (i = 0; i < NUM_PIECES; ++i)
-        tot_sz += A[i].encoded_sz;
-    tot_sz += (3 + 1);
-
-    if ((auth_blob = malloc(tot_sz)) == NULL)
-        return SCS_ERR_MEM;
-
-    /* Handle each field's encoding and concatenation. */
-    for (p = auth_blob, i = 0; i < NUM_PIECES; ++i)
-    {
-        base64_encode(A[i].raw, A[i].raw_sz, p, tot_sz);
-
-        /* Make a copy of the encoded atom. */
-        strcpy(A[i].encoded, p);
-
-        tot_sz -= A[i].encoded_sz;
-        p += A[i].encoded_sz;
-
-        /* Add the '|' separator after each field but the last one. */
-        if (i != NUM_PIECES - 1)
-        {
-            *p++ = '|';
-            --tot_sz;
-        }
-    }
-
-    *pauth_blob = auth_blob;
-
-    return 0;
-}
-
-static int get_atime (scs_t *scs)
-{
-    if ((scs->atime = time(NULL)) == (time_t) -1)
-        return SCS_ERR_OS;
-
-#ifdef FIXED_PARAMS
-    scs->atime = 123456789;
-#endif  /* FIXED_PARAMS */
-
-    /* Get string representation of atime which will be used later on when 
-     * creating the authentication tag. */
-    (void) snprintf(scs->s_atime, sizeof scs->s_atime, 
-            "%"PRIdMAX, (intmax_t) scs->atime);
-
-    return SCS_OK;
-}
-
-static int alloc_data (scs_t *scs)
-{
-    size_t b64_data_sz = BASE64_LENGTH(scs->data_capacity) + 1;
-
-    if ((scs->data = malloc(scs->data_capacity)) == NULL || 
-            (scs->b64_data = malloc(b64_data_sz)) == NULL)
-        return SCS_ERR_MEM;
-
-    return SCS_OK;
-}
-
-static void print_cookies (scs_t *scs)
+static void debug_print_cookies (scs_t *scs)
 {
     printf("SCS_ATIME = %s\n", scs->b64_atime);
     printf("SCS_AUTHTAG = %s\n", scs->b64_tag);

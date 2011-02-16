@@ -41,7 +41,7 @@
  *
  */
 
-#include "conf.h"
+#include "scs_conf.h"
 #include "scs.h"
 #include "base64.h"
 

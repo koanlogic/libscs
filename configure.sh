@@ -1,4 +1,4 @@
-export makl_conf_h="include/conf.h"
+export makl_conf_h="include/scs_conf.h"
 
 . "${MAKL_DIR}/cf/makl.init"
 makl_args_init "$@"

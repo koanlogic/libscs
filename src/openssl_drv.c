@@ -39,7 +39,7 @@ int openssl_gen_iv (scs_t *scs)
     return 0;
 }
 
-int openssl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
+int openssl_enc (scs_t *scs, unsigned char *in, size_t in_sz, uint8_t *out)
 {
     EVP_CIPHER_CTX c;
     int tmp_sz, out_sz;
@@ -62,7 +62,7 @@ int openssl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
     return 0;
 }
 
-int openssl_tag (scs_t *scs, const char *auth_blob)
+int openssl_tag (scs_t *scs)
 {
     HMAC_CTX c;
     scs_keyset_t *ks = &scs->cur_keyset;
@@ -71,13 +71,31 @@ int openssl_tag (scs_t *scs, const char *auth_blob)
 
 #if OPENSSL_VERSION_NUMBER < 0x10000000L
     HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL);
-    HMAC_Update(&c, (unsigned char *) auth_blob, strlen(auth_blob));
+    HMAC_Update(&c, (unsigned char *) scs->b64_data, strlen(scs->b64_data));
+    HMAC_Update(&c, (unsigned char *) scs->b64_atime, strlen(scs->b64_atime));
+    HMAC_Update(&c, (unsigned char *) scs->b64_tid, strlen(scs->b64_tid));
+    HMAC_Update(&c, (unsigned char *) scs->b64_iv, strlen(scs->b64_iv));
     HMAC_Final(&c, scs->tag, (unsigned int *) &scs->tag_sz);
 #else
-    if (!HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL) ||
-            !HMAC_Update(&c, (unsigned char *) auth_blob, strlen(auth_blob)) ||
-            !HMAC_Final(&c, scs->tag, (unsigned int *) &scs->tag_sz))
+    if (!HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL) || 
+            || !HMAC_Update(&c, (unsigned char *) scs->b64_data, 
+                            strlen(scs->b64_data))
+            || !HMAC_Update(&c, (unsigned char *) scs->b64_atime, 
+                            strlen(scs->b64_atime))
+            || !HMAC_Update(&c, (unsigned char *) scs->b64_tid, 
+                            strlen(scs->b64_tid))
+            || !HMAC_Update(&c, (unsigned char *) scs->b64_iv, 
+                            strlen(scs->b64_iv))
+            || !HMAC_Final(&c, scs->tag, (unsigned int *) &scs->tag_sz))
+    {
+        char ebuf[128]; /* According to ERR_error_string man page it must be
+                           at least 120 bytes long. */
+        scs_set_error(scs, SCS_ERR_CRYPTO, "openssl error: %s", 
+                ERR_error_string(ERR_get_error(), ebuf));
+        HMAC_CTX_cleanup(&c);
+
         return -1;
+    }
 #endif  /* OpenSSL < 1.0.0 */
 
     HMAC_CTX_cleanup(&c);

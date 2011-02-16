@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "scs.h"
 
 #define __COOKIE "NID=44=pGlr0kC4zkb2FZc4FNTqFDGpL7jLsPkvgTtgeRQ1oWsIQL3hXy0w38pHqmEL_JTepSoxTFw7ix_XrHpuniGHXCSOkyM71og81ZlaCQsbkoUJr2Pc9XUzKSoYQgWLDiST"
@@ -14,7 +15,7 @@ int main (void)
     if (scs_init("tid", AES_128_CBC_HMAC_SHA1, k, hk, 1, 3600, &scs) != SCS_OK)
         goto err;
 
-    if (scs_save(scs, COOKIE) != SCS_OK)
+    if (scs_encode(scs, (uint8_t *) COOKIE, strlen(COOKIE)))
         goto err;
 
     /* TODO */
