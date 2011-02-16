@@ -48,6 +48,8 @@ static int init_keyset (scs_keyset_t *keyset, const char *tid,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey, 
         int comp);
 static void reset_atoms (scs_t *scs);
+
+/* Encode support. */
 static int get_random_iv (scs_t *scs);
 static int get_atime (scs_t *scs);
 static int alloc_dyn_data (scs_t *scs, size_t st_sz);
@@ -56,6 +58,15 @@ static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *scs);
 static int do_pad (scs_t *scs);
 static int create_tag (scs_t *scs);
+
+/* Decode support. */
+static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid);
+static int decode_atoms (scs_t *scs, const char *b64_data, 
+        const char *b64_atime, const char *b64_iv, const char *b64_tag,
+        const char *b64_tid);
+static int tags_match (scs_t *scs);
+static int atime_ok (scs_t *scs);
+static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz);
 
 static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
 static void debug_print_cookies (scs_t *scs);
@@ -89,9 +100,34 @@ int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
 }
 
 /** \brief  ... */
-int scs_decode (scs_t *scs)
+int scs_decode (scs_t *scs, const char *data, const char *atime,
+        const char *iv, const char *tag, const char *tid,
+        uint8_t **pstate, size_t *pstate_sz)
 {
-    /* TODO */
+    scs_keyset_t *ks;
+
+    /*  1.  If (tid is available)
+     *  2.      data' = d($SCS_DATA)
+     *          atime' = d($SCS_ATIME)
+     *          tid' = d($SCS_TID)
+     *          iv' = d($SCS_IV)
+     *          tag' = d($SCS_AUTHTAG)
+     *  3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
+     *  4.     If (tag == tag' && NOW - atime' <= session_max_age)
+     *  5.         state = Uncomp(Dec(data'))
+     *  6.     Else discard PDU
+     *  7.  Else discard PDU        */
+    if ((ks = retr_keyset(scs, tid)) == NULL 
+            || decode_atoms(scs, data, atime, iv, tag, tid)
+            || create_tag(scs)
+            || tags_match(scs)
+            || atime_ok(scs)
+            || decode_state(scs, pstate, pstate_sz))
+    {
+        reset_atoms(scs);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -132,8 +168,8 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     s->data = NULL;
     s->b64_data = NULL;
 
-    s->cur_keyset.avail = 1;
-    s->prev_keyset.avail = 0;
+    s->cur_keyset.active = 1;
+    s->prev_keyset.active = 0;
 
     /* Error reporting. */
     s->rc = SCS_OK;
@@ -470,6 +506,71 @@ static int init_keyset (scs_keyset_t *keyset, const char *tid,
     return SCS_OK;
 err:
     return rc;
+}
+
+static int decode_atoms (scs_t *scs, const char *b64_data, 
+        const char *b64_atime, const char *b64_iv, const char *b64_tag,
+        const char *b64_tid)
+{
+    size_t i;
+    enum { NUM_ATOMS = 5 };
+    struct {
+        const char *id;
+        char *raw, *enc;
+        size_t *raw_sz, enc_sz;
+    } A[NUM_ATOMS];
+
+    /* TODO */
+
+    for (i = 0; i < NUM_ATOMS; ++i)
+    {
+        if (!base64_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
+        {
+            scs_set_error(scs, SCS_ERR_DECODE, "%s decoding failed", A[i].id);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid)
+{
+    char raw_tid[SCS_TID_MAX];
+    size_t raw_tid_len = sizeof raw_tid - 1;
+
+    /* Make sure we have room for the terminating NUL char. */
+    if (!base64_decode(tid, strlen(tid), raw_tid, &raw_tid_len))
+    {
+        scs_set_error(scs, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
+        return NULL;
+    }
+
+    raw_tid[raw_tid_len] = '\0';
+
+    if (scs->cur_keyset.active && !strcmp(raw_tid, scs->cur_keyset.tid))
+        return &scs->cur_keyset;
+
+    if (scs->prev_keyset.active && !strcmp(raw_tid, scs->prev_keyset.tid))
+        return &scs->prev_keyset;
+
+    scs_set_error(scs, SCS_ERR_WRONG_TID, "tid %s not found", raw_tid);
+    return NULL;
+}
+
+static int tags_match (scs_t *scs)
+{
+    return 0;
+}
+
+static int atime_ok (scs_t *scs)
+{
+    return 0;
+}
+
+static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz)
+{
+    return 0;
 }
 
 static void debug_print_cookies (scs_t *scs)

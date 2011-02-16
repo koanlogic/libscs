@@ -45,7 +45,9 @@ typedef enum
     SCS_ERR_CRYPTO,             /* Crypto toolkit error. */
     SCS_ERR_OS,                 /* OS error. */
     SCS_ERR_COMPRESSION,        /* Compression library error. */
-    SCS_ERR_IMPL                /* Hit an implementation limit. */
+    SCS_ERR_IMPL,               /* Hit an implementation limit. */
+    SCS_ERR_DECODE,             /* Failed decoding. */
+    SCS_ERR_WRONG_TID           /* TID not found. */
 } scs_err_t;
 
 typedef enum
@@ -60,7 +62,7 @@ typedef enum
 
 typedef struct
 {
-    int avail;
+    int active;
 
     /* Opaque (unique) identifier for the cipherset/keyset in use. */
     char tid[SCS_TID_MAX];
@@ -112,10 +114,12 @@ typedef struct
 } scs_t;
 
 int scs_init (const char *, scs_cipherset_t, const uint8_t *, const uint8_t *,
-        int, time_t, scs_t **);
-int scs_encode (scs_t *, const uint8_t *, size_t);
-int scs_decode (scs_t *);
-void scs_term (scs_t *);
+        int, time_t, scs_t **pscs);
+int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz);
+int scs_decode (scs_t *scs, const char *data, const char *atime, 
+        const char *iv, const char *tag, const char *tid,
+        uint8_t **pstate, size_t *pstate_sz);
+void scs_term (scs_t *scs);
 
 /* TODO getter/setter methods */
 

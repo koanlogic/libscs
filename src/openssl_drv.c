@@ -77,7 +77,7 @@ int openssl_tag (scs_t *scs)
     HMAC_Update(&c, (unsigned char *) scs->b64_iv, strlen(scs->b64_iv));
     HMAC_Final(&c, scs->tag, (unsigned int *) &scs->tag_sz);
 #else
-    if (!HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL) || 
+    if (!HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL)
             || !HMAC_Update(&c, (unsigned char *) scs->b64_data, 
                             strlen(scs->b64_data))
             || !HMAC_Update(&c, (unsigned char *) scs->b64_atime, 

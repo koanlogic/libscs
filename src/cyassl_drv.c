@@ -40,13 +40,16 @@ int cyassl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
     return 0;
 }
 
-int cyassl_tag (scs_t *scs, const char *auth_blob)
+int cyassl_tag (scs_t *scs)
 {
     Hmac hmac;
     scs_keyset_t *ks = &scs->cur_keyset;
 
     HmacSetKey(&hmac, SHA, ks->hkey, ks->hkey_sz);
-    HmacUpdate(&hmac, (byte *) auth_blob, strlen(auth_blob));
+    HmacUpdate(&hmac, (byte *) scs->b64_data, strlen(scs->b64_data));
+    HmacUpdate(&hmac, (byte *) scs->b64_atime, strlen(scs->b64_atime));
+    HmacUpdate(&hmac, (byte *) scs->b64_tid, strlen(scs->b64_tid));
+    HmacUpdate(&hmac, (byte *) scs->b64_iv, strlen(scs->b64_iv));
     HmacFinal(&hmac, scs->tag);
 
     scs->tag_sz = SHA_DIGEST_SIZE;

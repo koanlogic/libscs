@@ -9,8 +9,9 @@
 int main (void)
 {
     scs_t *scs = NULL;
-    uint8_t k[16] = { 'd', 'e', 'a', 'd', 'b', 'e', 'e', 'f' };
+    uint8_t k[16] = { 'd', 'e', 'a', 'd', 'b', 'e', 'e', 'f' }, *state;
     uint8_t hk[20] = { 'D', 'E', 'A', 'D', 'B', 'E', 'E', 'F' };
+    size_t state_sz;
 
     if (scs_init("tid", AES_128_CBC_HMAC_SHA1, k, hk, 1, 3600, &scs) != SCS_OK)
         goto err;
@@ -18,7 +19,9 @@ int main (void)
     if (scs_encode(scs, (uint8_t *) COOKIE, strlen(COOKIE)))
         goto err;
 
-    /* TODO */
+    if (scs_decode(scs, scs->b64_data, scs->b64_atime, scs->b64_iv,
+                scs->b64_tag, scs->b64_tid, &state, &state_sz))
+        goto err;
 
     scs_term(scs);
 
