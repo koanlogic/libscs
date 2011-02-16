@@ -57,17 +57,18 @@ static int optional_compress (scs_t *scs, const uint8_t *st, size_t st_sz);
 static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *scs);
 static int do_pad (scs_t *scs);
-static int create_tag (scs_t *scs);
+static int create_tag (scs_t *scs, scs_keyset_t *ks);
 
 /* Decode support. */
 static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid);
 static int decode_atoms (scs_t *scs, const char *b64_data, 
         const char *b64_atime, const char *b64_iv, const char *b64_tag,
         const char *b64_tid);
-static int tags_match (scs_t *scs);
+static int tags_match (scs_t *scs, const char *tag);
 static int atime_ok (scs_t *scs);
 static int optional_uncompress (scs_t *scs);
-static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz);
+static int decode_state (scs_t *scs, scs_keyset_t *ks, uint8_t **pstate, 
+        size_t *pstate_sz);
 
 static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
 static void debug_print_cookies (scs_t *scs);
@@ -78,6 +79,8 @@ static void debug_print_cookies (scs_t *scs);
  */ 
 int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
 {
+    scs_keyset_t *ks = &scs->cur_keyset;
+
     reset_atoms(scs);
 
     /* 1.  iv = RAND()
@@ -89,7 +92,7 @@ int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
             || alloc_dyn_data(scs, state_sz) 
             || optional_compress(scs, state, state_sz) 
             || encrypt_state(scs) 
-            || create_tag(scs))
+            || create_tag(scs, ks))
     {
         reset_atoms(scs);   /* Remove any garbage. */
         return -1;
@@ -107,24 +110,24 @@ int scs_decode (scs_t *scs, const char *data, const char *atime,
 {
     scs_keyset_t *ks;
 
-    /*  1.  If (tid is available)
-     *  2.      data' = d($SCS_DATA)
-     *          atime' = d($SCS_ATIME)
-     *          tid' = d($SCS_TID)
-     *          iv' = d($SCS_IV)
-     *          tag' = d($SCS_AUTHTAG)
-     *  3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
-     *  4.     If (tag == tag' && NOW - atime' <= session_max_age)
-     *  5.         state = Uncomp(Dec(data'))
-     *  6.     Else discard PDU
-     *  7.  Else discard PDU        */
+    /* 1.  If (tid is available)
+     * 2.      data' = d($SCS_DATA)
+     *         atime' = d($SCS_ATIME)
+     *         tid' = d($SCS_TID)
+     *         iv' = d($SCS_IV)
+     *         tag' = d($SCS_AUTHTAG)
+     * 3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
+     * 4.     If (tag == tag' && NOW - atime' <= max_session_age)
+     * 5.         state = Uncomp(Dec(data'))
+     * 6.     Else discard PDU
+     * 7.  Else discard PDU        */
     if ((ks = retr_keyset(scs, tid)) == NULL 
             || decode_atoms(scs, data, atime, iv, tag, tid)
-            || create_tag(scs)
-            || tags_match(scs)
+            || create_tag(scs, ks)
+            || tags_match(scs, tag)
             || atime_ok(scs)
             || optional_uncompress(scs)
-            || decode_state(scs, pstate, pstate_sz))
+            || decode_state(scs, ks, pstate, pstate_sz))
     {
         reset_atoms(scs);
         return -1;
@@ -172,7 +175,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
 
     s->cur_keyset.active = 1;
     s->prev_keyset.active = 0;
-
+    
     /* Error reporting. */
     s->rc = SCS_OK;
     s->estr[0] = '\0';
@@ -209,7 +212,7 @@ void scs_term (scs_t *s)
 /* Let the crypto toolkit handle PR generation of the block cipher IV. */
 static int get_random_iv (scs_t *scs)
 {
-    /* Error reporting is in charge of the crypto driver. */
+    /* Crypto driver is in charge of error reporting through scs_set_error(). */
     if (D.gen_iv(scs) == 0)
         return 0;
 
@@ -256,8 +259,8 @@ static int alloc_dyn_data (scs_t *scs, size_t state_sz)
     /* Also prepare the Base-64 encoding buffer. */
     b64_data_sz = BASE64_LENGTH(scs->data_capacity) + 1;
 
-    if ((scs->data = calloc(1, scs->data_capacity)) == NULL || 
-            (scs->b64_data = calloc(1, b64_data_sz)) == NULL)
+    if ((scs->data = calloc(1, scs->data_capacity)) == NULL 
+            || (scs->b64_data = calloc(1, b64_data_sz)) == NULL)
     {
         (void) scs_set_error(scs, SCS_ERR_OS, "malloc(3) failed: %s", ebuf);
         return -1;
@@ -284,16 +287,16 @@ static int encrypt_state (scs_t *scs)
 {
     /* Pad data to please the block encyption cipher, if needed, then 
      * encrypt. */
-    if (do_pad(scs) || D.enc(scs))
+    if (do_pad(scs) 
+            || D.enc(scs))
         return -1;
 
     return 0;
 }
 
-static int create_tag (scs_t *scs)
+static int create_tag (scs_t *scs, scs_keyset_t *ks)
 {
     size_t i;
-    scs_keyset_t *ks = &scs->cur_keyset;
     enum { NUM_ATOMS = 4 };
     struct {
         char *raw, *enc;
@@ -555,17 +558,42 @@ static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid)
     return NULL;
 }
 
-static int tags_match (scs_t *scs)
+static int tags_match (scs_t *scs, const char *tag)
 {
-    return 0;
+    if (!strcmp(scs->b64_tag, tag))
+        return 0;
+
+    scs_set_error(scs, SCS_ERR_TAG_MISMATCH, 
+            "\'%s\' != \'%s\'", scs->b64_tag, tag);
+
+    return -1;
 }
 
 static int atime_ok (scs_t *scs)
 {
-    return 0;
+    time_t now;
+    char ebuf[128];
+    time_t delta;
+
+    if ((now = time(NULL)) == (time_t) -1)
+    {
+        (void) strerror_r(errno, ebuf, sizeof ebuf);
+        scs_set_error(scs, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+        return -1;
+    }
+
+    if ((delta = (now - scs->atime)) <= scs->max_session_age)
+        return 0;
+
+    scs_set_error(scs, SCS_ERR_SESSION_EXPIRED, 
+            "session expired %"PRIdMAX" seconds ago", 
+            (intmax_t) (delta - scs->max_session_age));
+
+    return -1;
 }
 
-static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz)
+static int decode_state (scs_t *scs, scs_keyset_t *ks, uint8_t **pstate, 
+        size_t *pstate_sz)
 {
     return 0;
 }

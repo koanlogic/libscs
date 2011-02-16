@@ -43,11 +43,13 @@ typedef enum
     SCS_ERR_MEM,                /* Memory exhaustion. */
     SCS_ERR_WRONG_CIPHERSET,    /* Bad cipherset supplied to initialization. */
     SCS_ERR_CRYPTO,             /* Crypto toolkit error. */
-    SCS_ERR_OS,                 /* OS error. */
+    SCS_ERR_OS,                 /* Some syscall has failed. */
     SCS_ERR_COMPRESSION,        /* Compression library error. */
     SCS_ERR_IMPL,               /* Hit an implementation limit. */
     SCS_ERR_DECODE,             /* Failed decoding. */
-    SCS_ERR_WRONG_TID           /* TID not found. */
+    SCS_ERR_WRONG_TID,          /* TID not found. */
+    SCS_ERR_TAG_MISMATCH,       /* Supplied and computed tags don't match. */
+    SCS_ERR_SESSION_EXPIRED     /* session_max_age overrun. */
 } scs_err_t;
 
 typedef enum

@@ -47,10 +47,10 @@ int openssl_enc (scs_t *scs)
 
     EVP_CIPHER_CTX_init(&c);
 
-    if (!EVP_EncryptInit_ex(&c, EVP_aes_128_cbc(), NULL, ks->key, scs->iv) ||
-            !EVP_EncryptUpdate(&c, out, &out_sz, scs->data, scs->data_sz) ||
-            !EVP_EncryptFinal_ex(&c, scs->data + out_sz, &tmp_sz) ||
-            !EVP_CIPHER_CTX_cleanup(&c))
+    if (!EVP_EncryptInit_ex(&c, EVP_aes_128_cbc(), NULL, ks->key, scs->iv) 
+            || !EVP_EncryptUpdate(&c, out, &out_sz, scs->data, scs->data_sz) 
+            || !EVP_EncryptFinal_ex(&c, scs->data + out_sz, &tmp_sz) 
+            || !EVP_CIPHER_CTX_cleanup(&c))
         return -1;
 
     out_sz += tmp_sz;
