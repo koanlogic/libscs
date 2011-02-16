@@ -39,7 +39,7 @@ int openssl_gen_iv (scs_t *scs)
     return 0;
 }
 
-int openssl_enc (scs_t *scs, unsigned char *in, size_t in_sz, uint8_t *out)
+int openssl_enc (scs_t *scs)
 {
     EVP_CIPHER_CTX c;
     int tmp_sz, out_sz;
@@ -48,8 +48,8 @@ int openssl_enc (scs_t *scs, unsigned char *in, size_t in_sz, uint8_t *out)
     EVP_CIPHER_CTX_init(&c);
 
     if (!EVP_EncryptInit_ex(&c, EVP_aes_128_cbc(), NULL, ks->key, scs->iv) ||
-            !EVP_EncryptUpdate(&c, out, &out_sz, in, in_sz) ||
-            !EVP_EncryptFinal_ex(&c, out + out_sz, &tmp_sz) ||
+            !EVP_EncryptUpdate(&c, out, &out_sz, scs->data, scs->data_sz) ||
+            !EVP_EncryptFinal_ex(&c, scs->data + out_sz, &tmp_sz) ||
             !EVP_CIPHER_CTX_cleanup(&c))
         return -1;
 
@@ -57,7 +57,7 @@ int openssl_enc (scs_t *scs, unsigned char *in, size_t in_sz, uint8_t *out)
 
     EVP_CIPHER_CTX_cleanup(&c);
 
-    assert(ENC_LENGTH(in_sz, ks->block_sz) == (size_t) out_sz);
+    assert(ENC_LENGTH(scs->data_sz, ks->block_sz) == (size_t) out_sz);
 
     return 0;
 }

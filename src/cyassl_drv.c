@@ -29,13 +29,13 @@ int cyassl_gen_iv (scs_t *scs)
     return 0;
 }
 
-int cyassl_enc (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out)
+int cyassl_enc (scs_t *scs)
 {
     Aes aes;
     scs_keyset_t *ks = &scs->cur_keyset;
 
     AesSetKey(&aes, ks->key, ks->key_sz, scs->iv, AES_ENCRYPTION);
-    AesCbcEncrypt(&aes, out, in, in_sz);
+    AesCbcEncrypt(&aes, scs->data, scs->data, scs->data_sz);
 
     return 0;
 }

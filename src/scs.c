@@ -25,7 +25,7 @@ static struct
 {
     int (*init) (void);
     int (*gen_iv) (scs_t *scs);
-    int (*enc) (scs_t *scs, uint8_t *in, size_t in_sz, uint8_t *out);
+    int (*enc) (scs_t *scs);
     int (*tag) (scs_t *scs);
     void (*term) (void);
 } D = {
@@ -66,6 +66,7 @@ static int decode_atoms (scs_t *scs, const char *b64_data,
         const char *b64_tid);
 static int tags_match (scs_t *scs);
 static int atime_ok (scs_t *scs);
+static int optional_uncompress (scs_t *scs);
 static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz);
 
 static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
@@ -122,6 +123,7 @@ int scs_decode (scs_t *scs, const char *data, const char *atime,
             || create_tag(scs)
             || tags_match(scs)
             || atime_ok(scs)
+            || optional_uncompress(scs)
             || decode_state(scs, pstate, pstate_sz))
     {
         reset_atoms(scs);
@@ -280,14 +282,9 @@ static int optional_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
 
 static int encrypt_state (scs_t *scs)
 {
-    /* Pad data to please the block encyption cipher, if needed. */
-    if (do_pad(scs))
-        return -1;
-
-    //debug_print_buf("[PADDED]", scs->data, scs->data_sz);
-
-    /* Encrypt. */
-    if (D.enc(scs, scs->data, scs->data_sz, scs->data))
+    /* Pad data to please the block encyption cipher, if needed, then 
+     * encrypt. */
+    if (do_pad(scs) || D.enc(scs))
         return -1;
 
     return 0;
@@ -569,6 +566,11 @@ static int atime_ok (scs_t *scs)
 }
 
 static int decode_state (scs_t *scs, uint8_t **pstate, size_t *pstate_sz)
+{
+    return 0;
+}
+
+static int optional_uncompress (scs_t *scs)
 {
     return 0;
 }
