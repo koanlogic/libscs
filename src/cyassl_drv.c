@@ -40,6 +40,16 @@ int cyassl_enc (scs_t *scs)
     return 0;
 }
 
+int cyassl_dec (scs_t *scs, scs_keyset_t *ks)
+{
+    Aes aes;
+    
+    AesSetKey(&aes, ks->key, ks->key_sz, scs->iv, AES_ENCRYPTION);
+    AesCbcDecrypt(&aes, scs->data, scs->data, scs->data_sz);
+    
+    return 0;
+}
+
 int cyassl_tag (scs_t *scs)
 {
     Hmac hmac;

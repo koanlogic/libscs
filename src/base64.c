@@ -325,7 +325,6 @@ int base64_decode(const char *in, size_t inlen, char *out, size_t *outlen)
 
             if (in[3] != '=')
                 break;
-
         }
         else
         {

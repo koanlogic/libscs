@@ -119,8 +119,7 @@ int scs_init (const char *, scs_cipherset_t, const uint8_t *, const uint8_t *,
         int, time_t, scs_t **pscs);
 int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz);
 int scs_decode (scs_t *scs, const char *data, const char *atime, 
-        const char *iv, const char *tag, const char *tid,
-        uint8_t **pstate, size_t *pstate_sz);
+        const char *iv, const char *tag, const char *tid);
 void scs_term (scs_t *scs);
 
 /* TODO getter/setter methods */

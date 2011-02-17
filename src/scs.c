@@ -26,6 +26,7 @@ static struct
     int (*init) (void);
     int (*gen_iv) (scs_t *scs);
     int (*enc) (scs_t *scs);
+    int (*dec) (scs_t *scs, scs_keyset_t *ks);
     int (*tag) (scs_t *scs);
     void (*term) (void);
 } D = {
@@ -33,12 +34,14 @@ static struct
     cyassl_init,
     cyassl_gen_iv,
     cyassl_enc,
+    cyassl_dec,
     cyassl_tag,
     cyassl_term
 #elif defined (USE_OPENSSL)
     openssl_init,
     openssl_gen_iv,
     openssl_enc,
+    openssl_dec,
     openssl_tag,
     openssl_term
 #endif
@@ -67,8 +70,8 @@ static int decode_atoms (scs_t *scs, const char *b64_data,
 static int tags_match (scs_t *scs, const char *tag);
 static int atime_ok (scs_t *scs);
 static int optional_uncompress (scs_t *scs);
-static int decode_state (scs_t *scs, scs_keyset_t *ks, uint8_t **pstate, 
-        size_t *pstate_sz);
+static int decrypt_state (scs_t *scs, scs_keyset_t *ks);
+static int remove_pad (scs_t *scs);
 
 static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
 static void debug_print_cookies (scs_t *scs);
@@ -105,8 +108,7 @@ int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
 
 /** \brief  ... */
 int scs_decode (scs_t *scs, const char *data, const char *atime,
-        const char *iv, const char *tag, const char *tid,
-        uint8_t **pstate, size_t *pstate_sz)
+        const char *iv, const char *tag, const char *tid)
 {
     scs_keyset_t *ks;
 
@@ -126,8 +128,8 @@ int scs_decode (scs_t *scs, const char *data, const char *atime,
             || create_tag(scs, ks)
             || tags_match(scs, tag)
             || atime_ok(scs)
-            || optional_uncompress(scs)
-            || decode_state(scs, ks, pstate, pstate_sz))
+            || decrypt_state(scs, ks)
+            || optional_uncompress(scs))
     {
         reset_atoms(scs);
         return -1;
@@ -592,8 +594,17 @@ static int atime_ok (scs_t *scs)
     return -1;
 }
 
-static int decode_state (scs_t *scs, scs_keyset_t *ks, uint8_t **pstate, 
-        size_t *pstate_sz)
+static int decrypt_state (scs_t *scs, scs_keyset_t *ks)
+{
+    /* Decrypt and remove padding, if any. */
+    if (D.dec(scs, ks)
+            || remove_pad(scs))
+        return -1;
+
+    return 0;
+}
+
+static int remove_pad (scs_t *scs)
 {
     return 0;
 }
