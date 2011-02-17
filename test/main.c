@@ -19,7 +19,7 @@ int main (void)
         goto err;
 
     if (scs_decode(scs, scs->b64_data, scs->b64_atime, scs->b64_iv,
-                scs->b64_tag, scs->b64_tid)
+                scs->b64_tag, scs->b64_tid))
         goto err;
 
     scs_term(scs);

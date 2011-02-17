@@ -33,8 +33,11 @@ makl_add_var_mk "LDFLAGS" "\$(LIBZ_LDFLAGS)"
 
 # After user supplied arguments have been parsed, we'll check whether the
 # requested crypto toolkit has been found.
-makl_optional 1 "lib" "openssl" "" "-lssl -lcrypto"
 
+# We just need the "crypto" side of OpenSSL.
+makl_optional 1 "lib" "openssl" "" "-lcrypto"
+
+# CyaSSL default install goes to /usr/local/cyassl/{include,lib}.
 CYASSL_BASE="/usr/local/cyassl"
 makl_optional 1 "lib" "cyassl" \
                   "-I${CYASSL_BASE}/include" "-L${CYASSL_BASE}/lib -lcyassl"

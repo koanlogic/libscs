@@ -7,5 +7,6 @@
 int main (void)
 {
     Aes aes;
+    Hmac hmac;
     return 0;
 }

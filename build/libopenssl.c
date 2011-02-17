@@ -1,20 +1,16 @@
-#include <openssl/ssl.h>
+#include <stdio.h>
 #include <openssl/opensslv.h>
+#include <openssl/evp.h>
 
 int main()
 {
-    long ver;
-
-    /* check openssl version */
-//    SSL_SESSION_new();
-
     if (OPENSSL_VERSION_NUMBER < 0x00907000L) {
         printf("OpenSSL version 0.9.7 or better is required!\n");
         return 1;
     }
 
-    /* test linking to crypto */
-    ver = SSLeay();
+    EVP_add_cipher(EVP_aes_128_cbc());
+    EVP_add_digest(EVP_sha1());
 
     return 0;
 }

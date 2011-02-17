@@ -63,6 +63,12 @@ int openssl_enc (scs_t *scs)
     return 0;
 }
 
+int openssl_dec (scs_t *scs, scs_keyset_t *ks)
+{
+    /* TODO */
+    return 0;
+}
+
 int openssl_tag (scs_t *scs)
 {
     HMAC_CTX c;
