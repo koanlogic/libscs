@@ -18,9 +18,11 @@ int main (void)
     if (scs_encode(scs, (uint8_t *) COOKIE, strlen(COOKIE)))
         goto err;
 
+#if 0
     if (scs_decode(scs, scs->b64_data, scs->b64_atime, scs->b64_iv,
                 scs->b64_tag, scs->b64_tid))
         goto err;
+#endif
 
     scs_term(scs);
 

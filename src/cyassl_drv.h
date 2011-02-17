@@ -2,6 +2,7 @@
 #define _CYASSL_DRV_H_
 
 #include "scs.h"
+#include "scs_priv.h"
 
 int cyassl_init (void);
 int cyassl_gen_iv (scs_t *scs);

@@ -8,35 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
-#include "scs_conf.h"
-#include "base64.h"
 
-/* The resulting ciphertext size is computed as the size of the plaintext 
- * extended to the next block. */
-#define ENC_LENGTH(inlen, blocklen) \
-    ((inlen) + (blocklen) - ((inlen) % (blocklen)))
-
-/* This uses that the expression (n+(k-1))/k means the smallest
- * integer >= n/k, i.e., the ceiling of n/k.  */
-#define BASE64_LENGTH(inlen)        \
-    ((((inlen) + 2) / 3) * 4)
-
-/* For the default settings used by deflateInit(), the only expansion is an 
- * overhead of five bytes per 16 KB block (about 0.03%), plus a one-time 
- * overhead of six bytes for the entire stream. Even if the last or only block 
- * is smaller than 16 KB, the overhead is still five bytes. 
- * The following macro handles worst case scenario. */
-#define COMP_LENGTH(inlen)          \
-    ((inlen) + 6 + (5 * (((inlen) % 16384) + 1)))
-
-/* Maximum size of Cookie (TODO shorten to take care of attributes). */
-#define SCS_COOKIE_SIZE_MAX 4096
-
-/* Maximum length of various transform identifiers 
- * (TODO override via configure). */
-#define SCS_TID_MAX     64
-#define SCS_ATIME_MAX   32
-
+/** 
+ * Error codes. 
+ */
 typedef enum
 {
     SCS_OK = 0,
@@ -52,76 +27,42 @@ typedef enum
     SCS_ERR_SESSION_EXPIRED     /* session_max_age overrun. */
 } scs_err_t;
 
+/**
+ * List of available ciphersets.
+ */ 
 typedef enum
 {
     /* 
-     * The only one mandated by the spec: 
-     * - key_sz is 16 bytes;
-     * - hkey_sz size is 20 bytes.
+     * AES CBC with 128 bit key + HMAC SHA1 is the only cipherset mandated 
+     * by the spec.  Encryption key size is 16 bytes, authentication key 
+     * size is 20 bytes.  The two keys must be generated independently.
      */
     AES_128_CBC_HMAC_SHA1    
 } scs_cipherset_t;
 
-typedef struct
-{
-    int active;
-
-    /* Opaque (unique) identifier for the cipherset/keyset in use. */
-    char tid[SCS_TID_MAX];
-
-    /* Cipherset identifier. */
-    scs_cipherset_t cipherset;
- 
-    /* Block encryption parameters. */
-    size_t key_sz;
-    uint8_t key[128];
-    size_t block_sz;
-
-    /* HMAC key. */
-    size_t hkey_sz;
-    uint8_t hkey[128];
-
-    /* Enable/disable compression. */
-    int comp;
-} scs_keyset_t;
-
-/* 
+/**
  * SCS runtime context.
  */
-typedef struct
-{
-    scs_err_t rc;
-    char estr[256];
+struct scs_s;   /* Forward decls. */
+typedef struct scs_s scs_t;
 
-    /* Current and previously active keyset. */
-    scs_keyset_t cur_keyset, prev_keyset;
 
-    /* Protocol atoms in raw and Base-64 encoded form. */
-    uint8_t *data;
-    size_t data_sz, data_capacity;
-    char *b64_data;
+/** Create and configure a new SCS context. */
+int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
+        const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps);
 
-    uint8_t tag[64];
-    size_t tag_sz;
-    char b64_tag[BASE64_LENGTH(64) + 1];
+/** Create SCS atoms to transport \p state data. */
+int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz);
 
-    time_t atime, max_session_age;
-    char s_atime[SCS_ATIME_MAX];
-    char b64_atime[BASE64_LENGTH(SCS_ATIME_MAX) + 1];
-
-    uint8_t iv[128];
-    char b64_iv[BASE64_LENGTH(128) + 1];
-
-    char b64_tid[BASE64_LENGTH(SCS_TID_MAX) + 1];
-} scs_t;
-
-int scs_init (const char *, scs_cipherset_t, const uint8_t *, const uint8_t *,
-        int, time_t, scs_t **pscs);
-int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz);
-int scs_decode (scs_t *scs, const char *data, const char *atime, 
+/** Decode SCS atoms to retrieve previously saved state data. */
+int scs_decode (scs_t *ctx, const char *data, const char *atime, 
         const char *iv, const char *tag, const char *tid);
-void scs_term (scs_t *scs);
 
-/* TODO getter/setter methods */
+/** Dispose the supplied SCS context. */
+void scs_term (scs_t *ctx);
+
+/* 
+ * TODO getter/setter methods
+ */
 
 #endif  /* !_SCS_H_ */

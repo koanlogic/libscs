@@ -11,6 +11,8 @@
 #include "scs.h"
 #include "utils.h"
 #include "base64.h"
+#include "scs_priv.h"
+
 #ifdef HAVE_LIBZ
   #include <zlib.h>
 #endif  /* HAVE_LIBZ */
@@ -19,15 +21,15 @@
   #include "cyassl_drv.h"
 #elif defined(USE_OPENSSL)
   #include "openssl_drv.h"
-#endif  /* USE_CYASSL | USE_OPENSSL */
+#endif  /* USE_CYASSL || USE_OPENSSL */
 
 static struct
 {
     int (*init) (void);
-    int (*gen_iv) (scs_t *scs);
-    int (*enc) (scs_t *scs);
-    int (*dec) (scs_t *scs, scs_keyset_t *ks);
-    int (*tag) (scs_t *scs);
+    int (*gen_iv) (scs_t *ctx);
+    int (*enc) (scs_t *ctx);
+    int (*dec) (scs_t *ctx, scs_keyset_t *ks);
+    int (*tag) (scs_t *ctx);
     void (*term) (void);
 } D = {
 #ifdef USE_CYASSL
@@ -47,70 +49,74 @@ static struct
 #endif
 };
 
-static int init_keyset (scs_keyset_t *keyset, const char *tid, 
-        scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey, 
-        int comp);
-static void reset_atoms (scs_t *scs);
+static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
+        scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
+static void reset_atoms (scs_atoms_t *atoms);
 
 /* Encode support. */
-static int get_random_iv (scs_t *scs);
-static int get_atime (scs_t *scs);
-static int alloc_dyn_data (scs_t *scs, size_t st_sz);
-static int optional_compress (scs_t *scs, const uint8_t *st, size_t st_sz);
-static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz);
-static int encrypt_state (scs_t *scs);
-static int do_pad (scs_t *scs);
-static int create_tag (scs_t *scs, scs_keyset_t *ks);
+static int get_random_iv (scs_t *ctx);
+static int get_atime (scs_t *ctx);
+static int optional_compress (scs_t *ctx, const uint8_t *st, size_t st_sz);
+static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz);
+static int encrypt_state (scs_t *ctx);
+static int do_pad (scs_t *ctx);
+static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding);
 
 /* Decode support. */
-static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid);
-static int decode_atoms (scs_t *scs, const char *b64_data, 
-        const char *b64_atime, const char *b64_iv, const char *b64_tag,
-        const char *b64_tid);
-static int tags_match (scs_t *scs, const char *tag);
-static int atime_ok (scs_t *scs);
-static int optional_uncompress (scs_t *scs);
-static int decrypt_state (scs_t *scs, scs_keyset_t *ks);
-static int remove_pad (scs_t *scs);
+static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid);
+static int alloc_decoding_dyn_data (scs_t *ctx, size_t b64_state_sz);
+int attach_atoms (scs_t *ctx, const char *b64_data, const char *b64_atime, 
+        const char *b64_iv, const char *b64_tag);
+static int decode_atoms (scs_t *ctx, scs_keyset_t *ks);
+static int tags_match (scs_t *ctx, const char *tag);
+static int atime_ok (scs_t *ctx);
+static int optional_uncompress (scs_t *ctx);
+static int decrypt_state (scs_t *ctx, scs_keyset_t *ks);
+static int remove_pad (scs_t *ctx);
 
 static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
-static void debug_print_cookies (scs_t *scs);
+static void debug_print_cookies (scs_t *ctx);
 
 /**
  *  \brief  Prepare SCS PDU atoms to save the supplied \p state blob 
  *          to remote UA.
  */ 
-int scs_encode (scs_t *scs, const uint8_t *state, size_t state_sz)
+int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
-    scs_keyset_t *ks = &scs->cur_keyset;
+    scs_atoms_t *ats = &ctx->atoms;
+    scs_keyset_t *ks = &ctx->cur_keyset;
+    int skip_atoms_encoding = 1;
 
-    reset_atoms(scs);
+    reset_atoms(ats);
 
     /* 1.  iv = RAND()
      * 2.  atime = NOW
      * 3.  data = Enc(Comp(state))
      * 4.  tag = HMAC(e(data)||e(atime)||e(tid)||e(iv)) */
-    if (get_random_iv(scs) 
-            || get_atime(scs) 
-            || alloc_dyn_data(scs, state_sz) 
-            || optional_compress(scs, state, state_sz) 
-            || encrypt_state(scs) 
-            || create_tag(scs, ks))
+    if (get_random_iv(ctx) 
+            || get_atime(ctx) 
+            || optional_compress(ctx, state, state_sz) 
+            || encrypt_state(ctx) 
+            || create_tag(ctx, ks, !skip_atoms_encoding))
     {
-        reset_atoms(scs);   /* Remove any garbage. */
+        reset_atoms(ats);   /* Remove any garbage. */
         return -1;
     }
 
-    debug_print_cookies(scs);
+    debug_print_cookies(ctx);
 
     return 0;
 }
 
+#if 0
 /** \brief  ... */
-int scs_decode (scs_t *scs, const char *data, const char *atime,
+int scs_decode (scs_t *ctx, const char *data, const char *atime,
         const char *iv, const char *tag, const char *tid)
 {
     scs_keyset_t *ks;
+    int skip_atoms_encoding = 1;
+
+    reset_atoms(at);
 
     /* 1.  If (tid is available)
      * 2.      data' = d($SCS_DATA)
@@ -123,20 +129,23 @@ int scs_decode (scs_t *scs, const char *data, const char *atime,
      * 5.         state = Uncomp(Dec(data'))
      * 6.     Else discard PDU
      * 7.  Else discard PDU        */
-    if ((ks = retr_keyset(scs, tid)) == NULL 
-            || decode_atoms(scs, data, atime, iv, tag, tid)
-            || create_tag(scs, ks)
-            || tags_match(scs, tag)
-            || atime_ok(scs)
-            || decrypt_state(scs, ks)
-            || optional_uncompress(scs))
+    if ((ks = retr_keyset(ctx, tid)) == NULL 
+            || alloc_decoding_dyn_data(ctx, strlen(data))
+            || attach_atoms(ctx, data, atime, iv, tag)
+            || decode_atoms(ctx, ks)
+            || create_tag(ctx, ks, skip_atoms_encoding)
+            || tags_match(ctx, tag)
+            || atime_ok(ctx)
+            || decrypt_state(ctx, ks)
+            || optional_uncompress(ctx))
     {
-        reset_atoms(scs);
+        reset_atoms(at);
         return -1;
     }
 
     return 0;
 }
+#endif /* 0 */
 
 /**
  *  \brief  Return an SCS context initialized with the supplied tid, keyset,
@@ -144,16 +153,14 @@ int scs_decode (scs_t *scs, const char *data, const char *atime,
  *          Note that the \p tid string must be at least 64 bytes long: longer
  *          strings will be silently truncated.
  *          In case no deflate library has been found during the configuration
- *          stage, the \p comp value will be silently ignored (always set to 
- *          false). 
+ *          stage, the \p comp value will be silently ignored (i.e. always set 
+ *          to false). 
  */ 
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
         const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps)
 {
-    scs_t *s = NULL;
     scs_err_t rc;
-
-    /* TODO check preconditions. */
+    scs_t *s = NULL;
 
     /* Initialize the crypto toolkit. */
     if (D.init() == -1)
@@ -164,33 +171,31 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         return SCS_ERR_MEM;
 
     /* Initialize current keyset. */
-    rc = init_keyset(&s->cur_keyset, tid, cipherset, key, hkey, comp);
-    if (rc != SCS_OK)
-        goto err;
+    if ((rc = init_keyset(&s->cur_keyset, tid, comp, cipherset, key, hkey)))
+    {
+        free(s);
+        return rc;
+    }
 
+    /* Upper bound session lifetime. */
     s->max_session_age = max_session_age;
 
-    /* Initialize the .data* fields explicitly, so that free(3) won't die on 
-     * reset_atoms(). */
-    s->data = NULL;
-    s->b64_data = NULL;
-
+    /* New SCS context'es have one only active keyset (cur). */
     s->cur_keyset.active = 1;
     s->prev_keyset.active = 0;
     
-    /* Error reporting. */
+    /* Initialize error reporting. */
     s->rc = SCS_OK;
     s->estr[0] = '\0';
 
-    /* Note: .tag_sz will be set by each driver tag() function. */
+    /* 
+     * Note: .tag_sz will be set by each driver tag() function.
+     */
 
     /* Copy out to the result argument. */
     *ps = s;
 
     return SCS_OK;
-err:
-    free(s);
-    return rc;
 }
 
 /** 
@@ -198,166 +203,139 @@ err:
  */
 void scs_term (scs_t *s)
 {
-    if (s)
-    {
-        /* XXX secure key deletion of keying material ? */
-        free(s->data);
-        free(s->b64_data);
-        free(s);
-    }
-
+    memset(s, 0, sizeof *s);
+    free(s);
     D.term();
 
     return;
 }
 
 /* Let the crypto toolkit handle PR generation of the block cipher IV. */
-static int get_random_iv (scs_t *scs)
+static int get_random_iv (scs_t *ctx)
 {
     /* Crypto driver is in charge of error reporting through scs_set_error(). */
-    if (D.gen_iv(scs) == 0)
+    if (D.gen_iv(ctx) == 0)
         return 0;
 
     return -1;
 }
 
-static int get_atime (scs_t *scs)
+static int get_atime (scs_t *ctx)
 {
+    time_t atime;
     char ebuf[128];
+    scs_atoms_t *ats = &ctx->atoms;
 
-    if ((scs->atime = time(NULL)) == (time_t) -1)
+    if ((atime = time(NULL)) == (time_t) -1)
     {
         (void) strerror_r(errno, ebuf, sizeof ebuf);
-        scs_set_error(scs, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+        scs_set_error(ctx, SCS_ERR_OS, "time(3) failed: %s", ebuf);
         return -1;
     }
 
 #ifdef FIXED_PARAMS
-    scs->atime = 123456789;
+    strcpy(ats->atime, "123456789");
 #endif  /* FIXED_PARAMS */
 
     /* Get string representation of atime which will be used later on when 
      * creating the authentication tag. */
-    if (snprintf(scs->s_atime, sizeof scs->s_atime, 
-                "%"PRIdMAX, (intmax_t) scs->atime) >= (int) sizeof scs->s_atime)
+    if (snprintf(ats->atime, sizeof ats->atime, 
+                "%"PRIdMAX, (intmax_t) atime) >= (int) sizeof ats->atime)
     {
-        scs_set_error(scs, SCS_ERR_IMPL, "inflate SCS_ATIME_MAX !");
+        scs_set_error(ctx, SCS_ERR_IMPL, "inflate SCS_ATIME_MAX !");
         return -1;
     }
 
     return 0;
 }
 
-static int alloc_dyn_data (scs_t *scs, size_t state_sz)
+static int optional_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
-    size_t b64_data_sz;
-    char ebuf[128];
-    scs_keyset_t *ks = &scs->cur_keyset;
+    scs_atoms_t *ats = &ctx->atoms;
+    scs_keyset_t *ks = &ctx->cur_keyset;
 
-    /* Make room for the working buf, taking care for IV, padding and potential
-     * expansion due to compress overhead (worst case). */
-    scs->data_capacity = ENC_LENGTH(COMP_LENGTH(state_sz), ks->block_sz);
-
-    /* Also prepare the Base-64 encoding buffer. */
-    b64_data_sz = BASE64_LENGTH(scs->data_capacity) + 1;
-
-    if ((scs->data = calloc(1, scs->data_capacity)) == NULL 
-            || (scs->b64_data = calloc(1, b64_data_sz)) == NULL)
+    if (ks->comp)
     {
-        (void) scs_set_error(scs, SCS_ERR_OS, "malloc(3) failed: %s", ebuf);
-        return -1;
-    }
-
-    return 0;
-}
-
-static int optional_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
-{
-    if (scs->cur_keyset.comp)
-    {
-        scs->data_sz = state_sz;
-        memcpy(scs->data, (uint8_t *) state, scs->data_sz);
+        ats->data_sz = state_sz;
+        memcpy(ats->data, (uint8_t *) state, ats->data_sz);
         return 0;
     }
 
-    scs->data_sz = scs->data_capacity;
+    /* Set it to the maximum available, it will be updated later on 
+     * by do_compress(). */
+    ats->data_sz = sizeof ats->data;
 
-    return do_compress(scs, state, state_sz);
+    return do_compress(ctx, state, state_sz);
 }
 
-static int encrypt_state (scs_t *scs)
+static int encrypt_state (scs_t *ctx)
 {
     /* Pad data to please the block encyption cipher, if needed, then 
      * encrypt. */
-    if (do_pad(scs) 
-            || D.enc(scs))
+    if (do_pad(ctx)
+            || D.enc(ctx))
         return -1;
 
     return 0;
 }
 
-static int create_tag (scs_t *scs, scs_keyset_t *ks)
+static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
 {
     size_t i;
+    scs_atoms_t *ats = &ctx->atoms;
     enum { NUM_ATOMS = 4 };
     struct {
         char *raw, *enc;
         size_t raw_sz, enc_sz;
     } A[NUM_ATOMS] = {
         { 
-            (char *) scs->data,
-            scs->b64_data,
-            scs->data_sz,
-            BASE64_LENGTH(scs->data_sz)
+            (char *) ats->data,
+            ats->b64_data,
+            ats->data_sz,
+            BASE64_LENGTH(ats->data_sz)
         },
         { 
-            scs->s_atime,
-            scs->b64_atime,
-            strlen(scs->s_atime),
-            sizeof(scs->b64_atime)
+            ats->atime,
+            ats->b64_atime,
+            strlen(ats->atime),
+            sizeof(ats->b64_atime)
         },
         {
             ks->tid,
-            scs->b64_tid,
+            ats->b64_tid,
             strlen(ks->tid),
-            sizeof(scs->b64_tid)
+            sizeof(ats->b64_tid)
         },
         {
-            (char *) scs->iv,
-            scs->b64_iv,
+            (char *) ats->iv,
+            ats->b64_iv,
             ks->block_sz,
             BASE64_LENGTH(ks->block_sz)
         }
     };    
     
-    /* Create Base-64 encoded versions of atoms. */
-    for (i = 0; i < NUM_ATOMS; ++i)
-        base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz);
+    /* If requested, create Base-64 encoded versions of atoms. */
+    if (!skip_encoding)
+    {
+        for (i = 0; i < NUM_ATOMS; ++i)
+            base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz);
+    }
         
     /* Create auth tag. */
-    if (D.tag(scs))
+    if (D.tag(ctx))
         return -1;
 
     /* Base-64 encode the auth tag. */
-    base64_encode((const char *) scs->tag, scs->tag_sz, 
-            scs->b64_tag, sizeof scs->b64_tag);
+    base64_encode((const char *) ats->tag, ats->tag_sz, 
+            ats->b64_tag, sizeof ats->b64_tag);
 
     return 0;
 }
 
 /* Reset protocol atoms values. */
-static void reset_atoms (scs_t *scs)
+static void reset_atoms (scs_atoms_t *ats)
 {
-    if (scs == NULL)
-        return;
-
-    free(scs->data), scs->data = NULL;
-    free(scs->b64_data), scs->b64_data = NULL;
-    scs->data_sz = scs->data_capacity = 0;
-    scs->tag_sz = 0;
-    scs->atime = (time_t) -1;
-    /* TODO */
-
+    memset(ats, 0, sizeof *ats); 
     return;
 }
 
@@ -375,11 +353,12 @@ static void reset_atoms (scs_t *scs)
  * overhead, one byte of actual data).  For larger stream sizes, the overhead 
  * approaches the limiting value of 0.03%.  */
 //static int compress (const char *in, uint8_t *out, size_t *pout_sz)
-static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
+static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
 #ifdef HAVE_LIBZ
     int ret;
     z_stream zstr;
+    scs_atoms_t *ats = &ctx->atoms;
 
     zstr.zalloc = Z_NULL;
     zstr.zfree = Z_NULL;
@@ -387,25 +366,25 @@ static int do_compress (scs_t *scs, const uint8_t *state, size_t state_sz)
 
     if ((ret = deflateInit(&zstr, Z_DEFAULT_COMPRESSION)) != Z_OK)
     {
-        scs_set_error(scs, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
+        scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
         return -1;
     }
 
     zstr.next_in = (Bytef *) state;
     zstr.avail_in = state_sz;
 
-    zstr.next_out = scs->data;
-    zstr.avail_out = scs->data_sz;
+    zstr.next_out = ats->data;
+    zstr.avail_out = ats->data_sz;
 
     /* We can't overflow the output buffer as long as '*pout_sz' is the
      * real size of 'out'. */
     if ((ret = deflate(&zstr, Z_FINISH)) != Z_STREAM_END)
     {
-        scs_set_error(scs, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
+        scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
         goto err; 
     }
 
-    scs->data_sz = zstr.total_out;
+    ats->data_sz = zstr.total_out;
 
     deflateEnd(&zstr);
 
@@ -418,30 +397,27 @@ err:
 #endif  /* HAVE_LIBZ */
 }
 
-static int do_pad (scs_t *scs)
+static int do_pad (scs_t *ctx)
 {
-    uint8_t *b;
-    size_t block_sz, capacity, pad_len, *sz;
+    scs_atoms_t *ats = &ctx->atoms;
+    scs_keyset_t *ks = &ctx->cur_keyset;
+    size_t pad_len, *sz;
    
-    block_sz = scs->cur_keyset.block_sz;
-    capacity = scs->data_capacity;
-    sz = &scs->data_sz;
+    sz = &ats->data_sz;
 
-    pad_len = block_sz - (*sz % block_sz);
-
-    b = scs->data;
+    pad_len = ks->block_sz - (*sz % ks->block_sz);
 
     /* RFC 3852, Section 6.3: "This padding method is well defined if 
      * and only if k (i.e. pad_len) is less than 256." */
     if (pad_len >= 256)
     {
-        scs_set_error(scs, SCS_ERR_IMPL, "unsupported pad length");
+        scs_set_error(ctx, SCS_ERR_IMPL, "unsupported pad length");
         return -1;
     }
 
-    if (*sz + pad_len > capacity)
+    if (*sz + pad_len > sizeof ats->data)
     {
-        scs_set_error(scs, SCS_ERR_MEM, "data buffer too small");
+        scs_set_error(ctx, SCS_ERR_IMPL, "data buffer too small");
         return -1;
     }
 
@@ -450,7 +426,7 @@ static int do_pad (scs_t *scs)
         /* If the length of (compressed) state is not a multiple of the 
          * block size, its value will be filled with padding bytes of equal 
          * value as the pad length. */
-        memset(b + *sz, pad_len, pad_len);
+        memset(ats->data + *sz, pad_len, pad_len);
         *sz += pad_len;
     }
 
@@ -472,29 +448,28 @@ static void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz)
     printf("\n</%s>\n", label);
 }
 
-static int init_keyset (scs_keyset_t *keyset, const char *tid, 
-        scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey, 
-        int comp)
+static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
+        scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey)
 {
     scs_err_t rc;
 
-    /* Silently truncate tid if longer than sizeof keyset->tid (64 bytes). */
-    (void) snprintf(keyset->tid, sizeof keyset->tid, "%s", tid);
+    /* Silently truncate tid if longer than sizeof ks->tid (64 bytes). */
+    (void) snprintf(ks->tid, sizeof ks->tid, "%s", tid);
 
     /* Set the compression flag as requested.  In case zlib is not available 
      * on the platform, ignore user request and set to false. */
 #ifdef HAVE_LIBZ
-    keyset->comp = comp;
+    ks->comp = comp;
 #else
-    keyset->comp = 0;
+    ks->comp = 0;
 #endif  /* HAVE_LIBZ */
 
     /* Setup keyset and cipherset. */
-    switch ((keyset->cipherset = cipherset))
+    switch ((ks->cipherset = cipherset))
     {
         case AES_128_CBC_HMAC_SHA1:
-            keyset->key_sz = keyset->block_sz = 16;
-            keyset->hkey_sz = 20;
+            ks->key_sz = ks->block_sz = 16;
+            ks->hkey_sz = 20;
             break;
         default:
             rc = SCS_ERR_WRONG_CIPHERSET;
@@ -502,33 +477,83 @@ static int init_keyset (scs_keyset_t *keyset, const char *tid,
     }
 
     /* Internalise keying material. */
-    memcpy(keyset->key, key, keyset->key_sz);
-    memcpy(keyset->hkey, hkey, keyset->hkey_sz);
+    memcpy(ks->key, key, ks->key_sz);
+    memcpy(ks->hkey, hkey, ks->hkey_sz);
 
     return SCS_OK;
 err:
     return rc;
 }
 
-static int decode_atoms (scs_t *scs, const char *b64_data, 
-        const char *b64_atime, const char *b64_iv, const char *b64_tag,
-        const char *b64_tid)
+#if 0
+/* Possible truncation will be detected in some later processing stage. */
+int attach_atoms (scs_t *ctx, const char *b64_data, const char *b64_atime, 
+        const char *b64_iv, const char *b64_tag)
 {
-    size_t i;
-    enum { NUM_ATOMS = 5 };
+    /* SCS_DATA */
+//    ctx->data_sz = strlen(b64_data);
+    memcpy(ctx->data, b64_data, ctx->data_sz);
+
+    /* SCS_ATIME */
+    (void) snprintf(ctx->b64_atime, sizeof ctx->b64_atime, "%s", b64_atime);
+
+    /* SCS_IV */
+    (void) snprintf(ctx->b64_iv, sizeof ctx->b64_iv, "%s", b64_iv);
+
+    /* SCS_AUTHTAG */
+    (void) snprintf(ctx->b64_tag, sizeof ctx->b64_tag, "%s", b64_tag);
+
+    return 0;
+}
+
+/* Note that tid has been already decoded in order to identify the running
+ * keyset inside retr_keyset().  Its value is found in the selected keyset. */
+static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
+{
+    size_t i, atime_sz = sizeof(ctx->atime), iv_sz = ks->block_sz;
+    enum { NUM_ATOMS = 4 };
     struct {
         const char *id;
-        char *raw, *enc;
-        size_t *raw_sz, enc_sz;
-    } A[NUM_ATOMS];
-
-    /* TODO */
+        char *raw;
+        size_t *raw_sz;
+        const char *enc;
+        size_t enc_sz;
+    } A[NUM_ATOMS] = {
+        {
+            "SCS_DATA",
+            (char *) ctx->data,
+            &ctx->data_sz,      /* Initially set to data_capacity. */
+            ctx->b64_data,
+            strlen(ctx->b64_data)
+        },
+        {
+            "SCS_ATIME",
+            &ctx->atime[0],
+            &atime_sz,
+            ctx->b64_atime,
+            strlen(ctx->b64_atime)
+        },
+        {
+            "SCS_IV",
+            (char *) ctx->iv,
+            &iv_sz,
+            ctx->b64_iv,
+            strlen(ctx->b64_iv)
+        },
+        {
+            "SCS_AUTHTAG",
+            (char *) ctx->tag,
+            &ctx->tag_sz,
+            ctx->b64_tag,
+            strlen(ctx->b64_tag)
+        }
+    };
 
     for (i = 0; i < NUM_ATOMS; ++i)
     {
         if (!base64_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
         {
-            scs_set_error(scs, SCS_ERR_DECODE, "%s decoding failed", A[i].id);
+            scs_set_error(ctx, SCS_ERR_DECODE, "%s decoding failed", A[i].id);
             return -1;
         }
     }
@@ -536,7 +561,7 @@ static int decode_atoms (scs_t *scs, const char *b64_data,
     return 0;
 }
 
-static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid)
+static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid)
 {
     char raw_tid[SCS_TID_MAX];
     size_t raw_tid_len = sizeof raw_tid - 1;
@@ -544,81 +569,105 @@ static scs_keyset_t *retr_keyset (scs_t *scs, const char *tid)
     /* Make sure we have room for the terminating NUL char. */
     if (!base64_decode(tid, strlen(tid), raw_tid, &raw_tid_len))
     {
-        scs_set_error(scs, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
+        scs_set_error(ctx, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
         return NULL;
     }
 
     raw_tid[raw_tid_len] = '\0';
 
-    if (scs->cur_keyset.active && !strcmp(raw_tid, scs->cur_keyset.tid))
-        return &scs->cur_keyset;
+    if (ctx->cur_keyset.active && !strcmp(raw_tid, ctx->cur_keyset.tid))
+        return &ctx->cur_keyset;
 
-    if (scs->prev_keyset.active && !strcmp(raw_tid, scs->prev_keyset.tid))
-        return &scs->prev_keyset;
+    if (ctx->prev_keyset.active && !strcmp(raw_tid, ctx->prev_keyset.tid))
+        return &ctx->prev_keyset;
 
-    scs_set_error(scs, SCS_ERR_WRONG_TID, "tid %s not found", raw_tid);
+    scs_set_error(ctx, SCS_ERR_WRONG_TID, "tid %s not found", raw_tid);
     return NULL;
 }
 
-static int tags_match (scs_t *scs, const char *tag)
+static int alloc_decoding_dyn_data (scs_t *ctx, size_t b64_state_sz)
 {
-    if (!strcmp(scs->b64_tag, tag))
+    char ebuf[128];
+
+    ctx->b64_data = NULL;   /* Unused when decoding. */
+    ctx->data_sz = ctx->data_capacity = SCS_STATE_MAX;
+
+    if ((ctx->data = calloc(1, ctx->data_capacity)) == NULL)
+    {
+        (void) strerror_r(errno, ebuf, sizeof ebuf);
+        (void) scs_set_error(ctx, SCS_ERR_OS, "calloc(3) failed: %s", ebuf);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int tags_match (scs_t *ctx, const char *tag)
+{
+    if (!strcmp(ctx->b64_tag, tag))
         return 0;
 
-    scs_set_error(scs, SCS_ERR_TAG_MISMATCH, 
-            "\'%s\' != \'%s\'", scs->b64_tag, tag);
+    scs_set_error(ctx, SCS_ERR_TAG_MISMATCH, 
+            "\'%s\' != \'%s\'", ctx->b64_tag, tag);
 
     return -1;
 }
 
-static int atime_ok (scs_t *scs)
+static int atime_ok (scs_t *ctx)
 {
-    time_t now;
     char ebuf[128];
-    time_t delta;
+    time_t now, atime, delta;
 
     if ((now = time(NULL)) == (time_t) -1)
     {
         (void) strerror_r(errno, ebuf, sizeof ebuf);
-        scs_set_error(scs, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+        scs_set_error(ctx, SCS_ERR_OS, "time(3) failed: %s", ebuf);
         return -1;
     }
 
-    if ((delta = (now - scs->atime)) <= scs->max_session_age)
+    /* Get time_t representation of atime (XXX do it better). */
+    atime = (time_t) atoi(ctx->atime);
+
+    if ((delta = (now - atime)) <= ctx->max_session_age)
         return 0;
 
-    scs_set_error(scs, SCS_ERR_SESSION_EXPIRED, 
+    scs_set_error(ctx, SCS_ERR_SESSION_EXPIRED, 
             "session expired %"PRIdMAX" seconds ago", 
-            (intmax_t) (delta - scs->max_session_age));
+            (intmax_t) (delta - ctx->max_session_age));
 
     return -1;
 }
 
-static int decrypt_state (scs_t *scs, scs_keyset_t *ks)
+static int decrypt_state (scs_t *ctx, scs_keyset_t *ks)
 {
     /* Decrypt and remove padding, if any. */
-    if (D.dec(scs, ks)
-            || remove_pad(scs))
+    if (D.dec(ctx, ks)
+            || remove_pad(ctx))
         return -1;
 
     return 0;
 }
 
-static int remove_pad (scs_t *scs)
+static int remove_pad (scs_t *ctx)
 {
     return 0;
 }
 
-static int optional_uncompress (scs_t *scs)
+static int optional_uncompress (scs_t *ctx)
 {
     return 0;
 }
+#endif
 
-static void debug_print_cookies (scs_t *scs)
+static void debug_print_cookies (scs_t *ctx)
 {
-    printf("SCS_ATIME = %s\n", scs->b64_atime);
-    printf("SCS_AUTHTAG = %s\n", scs->b64_tag);
-    printf("SCS_DATA = %s\n", scs->b64_data);
-    printf("SCS_TID = %s\n", scs->b64_tid);
-    printf("SCS_IV = %s\n", scs->b64_iv);
+    scs_atoms_t *ats = &ctx->atoms;
+
+    printf("SCS_ATIME = %s\n", ats->b64_atime);
+    printf("SCS_AUTHTAG = %s\n", ats->b64_tag);
+    printf("SCS_DATA = %s\n", ats->b64_data);
+    printf("SCS_TID = %s\n", ats->b64_tid);
+    printf("SCS_IV = %s\n", ats->b64_iv);
+
+    return;
 }

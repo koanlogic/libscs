@@ -44,6 +44,7 @@
 #include "scs_conf.h"
 #include "scs.h"
 #include "base64.h"
+#include "scs_priv.h"
 
 #include <stdlib.h>
 #include <limits.h>
