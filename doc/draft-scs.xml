@@ -31,36 +31,25 @@
       <address>
         <postal>
           <street>via Marmolada, 4</street>
-
           <city>Vitorchiano (VT)</city>
-
           <region></region>
-
           <code>01030</code>
-
           <country>Italy</country>
         </postal>
-
         <email>tat@koanlogic.com</email>
       </address>
     </author>
 
     <author fullname="Steven Dorigotti" initials="S.D." surname="Dorigotti">
       <organization>KoanLogic</organization>
-
       <address>
         <postal>
           <street>via Maso della Pieve 25/C</street>
-
           <city>Bolzano</city>
-
           <region></region>
-
           <code>39100</code>
-
           <country>Italy</country>
         </postal>
-
         <email>stewy@koanlogic.com</email>
       </address>
     </author>
@@ -72,18 +61,12 @@
       <address>
         <postal>
           <street>Via di Sabbiuno 11/5</street>
-
           <city>Bologna</city>
-
           <region></region>
-
           <code>40139</code>
-
           <country>Italy</country>
         </postal>
-
         <phone>+39 051 644 82 68</phone>
-
         <email>tho@koanlogic.com</email>
       </address>
     </author>
@@ -772,9 +755,7 @@
           and MAC</title>
 
           <author initials="T.K." surname="Kohno"></author>
-
           <author initials="A.P." surname="Palacio"></author>
-
           <author initials="J.B." surname="Black"></author>
 
           <date year="2003" />
