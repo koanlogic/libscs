@@ -4,7 +4,7 @@
 makl_args_def "crypto" \
                   "=(openssl or cyassl)" \
                   "openssl" \
-                  "Select crypto toolkit to use."
+                  "select crypto toolkit to use"
 
 # Hook function.
 function __makl_crypto ()

@@ -4,7 +4,7 @@
 makl_args_def "gnu_debug" \
                   ""    \
                   ""    \
-                  "Enable debugging with GCC/GBD"
+                  "enable debugging with GCC/GBD"
 
 # Hook function.
 function __makl_gnu_debug ()
