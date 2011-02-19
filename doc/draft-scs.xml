@@ -147,13 +147,14 @@
 
           <t>web applications with HA or load balancing requirements, which
           may delegate handling of the application state to clients instead of
-          using shared storage or forced peering to enhance overall
+          using shared storage or forced peering, to enhance overall
           parallelism.</t>
         </list></t>
 
       <t>An SCS server can be implemented into a web application by means of a
-      user library that exposes the core SCS functionality, or transparently,
-      by hiding the "diskless session" facility behind a generic "session API"
+      user library that exposes the core SCS functionality and leaves explicit
+      control over SCS cookies to the programmer, or transparently, by hiding 
+      the "diskless session" facility behind a generic "session API" 
       abstraction.</t>
     </section>
 
@@ -186,7 +187,7 @@
       <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
       load-balanced or HA environment) and C to be the client with a
-      cookie-enabled browser.</t>
+      cookie-enabled browser, or UA with equivalent capabilities.</t>
 
       <section anchor="sec_pdu_description" title="PDU Description">
         <t>S and C exchange the same PDU (<xref
@@ -198,10 +199,13 @@
         (i.e. SCS_DATA cookie), while integrity and authentication apply to
         the entire PDU.</t>
 
+        <t>The following subsections describe the syntax and semantics of
+        of each SCS cookie.</t>
+
         <section anchor="sec_scs_atime" title="SCS_ATIME">
           <t>Timestamp relating to the last read or write operation performed
-          on session data, encoded as the number of seconds since UNIX
-          epoch.</t>
+          on session data, encoded a numeric string holding the number of 
+          seconds since UNIX epoch.</t>
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.</t>
@@ -215,9 +219,10 @@
         <!-- end of SCS_ATIME -->
 
         <section anchor="sec_scs_data" title="SCS_DATA">
-          <t>Block of encrypted and compressed data, containing session state.
-          Note that no restriction is imposed on plain text structure: the
-          protocol is completely agnostic as to state data layout.</t>
+          <t>Block of encrypted and optionally compressed data, containing 
+          session state.  Note that no restriction is imposed on plain text 
+          structure: the protocol is completely agnostic as to state data 
+          layout.</t>
 
           <t>If the total size of the SCS_DATA cookie, including name, value
           and attributes, exceeds 4096 bytes (see Section 6.1. of <xref
@@ -234,15 +239,15 @@
           <t>Anyway, in order to minimize both network bandwidth and client
           cookie store consumption, applications should try to upper bound
           state data to some sensible value. Also, an SCS implementation MAY
-          decide to limit the accepted state data to any value greater or
-          equal to 4KB.</t>
+          decide to limit the accepted state data to any value greater than
+          or equal to 4KB.</t>
         </section>
 
         <!-- end of SCS_DATA -->
 
         <section anchor="sec_scs_tid" title="SCS_TID">
-          <t>Unique identifier of the transform set (keys and algorithms) used
-          to generate this PDU.</t>
+          <t>ASCII string that uniquely identifies the transform set (keys 
+          and algorithms) used to generate this PDU.</t>
 
           <t>SCS assumes that a key-agreement/distribution mechanism exists
           for environments in which S consists of multiple servers (it may
@@ -300,7 +305,7 @@
         <t>The following conventions will be used in the algorithm description
         (<xref target="sec_outbound_transform"></xref> and <xref
         target="sec_inbound_transform"></xref>): <list style="symbols">
-            <t>Enc/Dec(): encryption/decryption functions (<xref
+            <t>Enc/Dec(): block encryption/decryption functions (<xref
             target="sec_cipher_set"></xref>);</t>
 
             <t>HMAC(): authentication function (<xref
@@ -325,7 +330,7 @@
               integrity,</t>
             </list> which appear to be sufficiently secure in a wide range of
           use cases <xref target="Bellare"></xref>, are widely available, and
-          can be implemented in a few kilobytes of memory, which is an
+          can be implemented in a few kilobytes of memory, providing an
           extremely valuable feature in constrained devices.</t>
 
           <t>One should consider using larger cryptographic key lengths (192
@@ -392,7 +397,7 @@
           <?rfc subcompact="yes" ?>
 
           <t><list style="empty">
-              <t>SCS_ATIME = e(atime_as_an_ascii_string)</t>
+              <t>SCS_ATIME = e(atime)</t>
 
               <t>SCS_AUTHTAG = e(tag)</t>
 
@@ -449,7 +454,7 @@
       <section anchor="sec_pdu_exchange" title="PDU Exchange">
         <t>SCS can be modeled in the same manner as a typical
         store-and-forward protocol, in which the endpoints are S, consisting
-        of one or more HTTP servers and the client C, an intermediate node
+        of one or more HTTP servers, and the client C, an intermediate node
         used to "temporarily" store the data to be successively forwarded to
         S.</t>
 
@@ -479,7 +484,7 @@
 
         <t>Note that although SCS cookies always have the same naming, there
         can be multiple active SCS sessions in use at a given user-agent as
-        long as the tuple (SCS PDU, Domain, Path) is different.</t>
+        long as the tuple &lt;SCS PDU, Domain, Path&gt; is different.</t>
 
         <t>SCS cookies MUST NOT be folded into a single HTTP header field, see
         Section 3 of <xref target="I-D.ietf-httpstate-cookie"></xref>.</t>
