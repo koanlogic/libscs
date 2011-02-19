@@ -62,7 +62,12 @@ int scs_decode (scs_t *ctx, const char *data, const char *atime,
 void scs_term (scs_t *ctx);
 
 /* 
- * TODO getter/setter methods
+ * Getter methods.
  */
+const char *scs_data (scs_t *scs);
+const char *scs_atime (scs_t *scs);
+const char *scs_iv (scs_t *scs);
+const char *scs_authtag (scs_t *scs);
+const char *scs_tid (scs_t *scs);
 
 #endif  /* !_SCS_H_ */

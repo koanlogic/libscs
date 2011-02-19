@@ -7,5 +7,6 @@
 #include "utils.h"
 
 int scs_set_error (scs_t *scs, scs_err_t rc, const char *fmt, ...);
+void debug_print_buf (const char *label, const uint8_t *b, size_t b_sz);
 
 #endif  /* _SCS_UTILS_H_ */

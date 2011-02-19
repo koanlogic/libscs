@@ -2,7 +2,6 @@ include common.mk
 include ../Makefile.conf
 
 LIB = scs
-SHLIB = yes
 
 SRCS = scs.c
 SRCS += utils.c

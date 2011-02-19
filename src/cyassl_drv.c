@@ -47,10 +47,10 @@ int cyassl_dec (scs_t *ctx, scs_keyset_t *ks)
 {
     Aes aes;
     scs_atoms_t *ats = &ctx->atoms;
-    
-    AesSetKey(&aes, ks->key, ks->key_sz, ats->iv, AES_ENCRYPTION);
+
+    AesSetKey(&aes, ks->key, ks->key_sz, ats->iv, AES_DECRYPTION);
     AesCbcDecrypt(&aes, ats->data, ats->data, ats->data_sz);
-    
+
     return 0;
 }
 

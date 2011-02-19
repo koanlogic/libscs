@@ -1,0 +1,6 @@
+- minimal crypto implementation: aes + hmac + sha1 + rand
+- lua bindings
+[stewy] python bindings
+- php bindings
+- BSD licensed base64 codec
+- doxy framework
