@@ -15,4 +15,6 @@ all: $(TXT) $(HTML)
 		--param xml2rfc-ext-support-rfc2731 '"no"' \
 		$(XSLT) $< > $@
 
+sync: all; scp $(TXT) $(HTML) root@koanlogic.com:/var/www-anemic/www/download/
+
 clean: ; $(RM) $(TXT) $(HTML)
