@@ -30,26 +30,37 @@
 
       <address>
         <postal>
-          <street>via Marmolada, 4</street>
+          <street>Via Marmolada, 4</street>
+
           <city>Vitorchiano (VT)</city>
+
           <region></region>
+
           <code>01030</code>
+
           <country>Italy</country>
         </postal>
+
         <email>tat@koanlogic.com</email>
       </address>
     </author>
 
     <author fullname="Steven Dorigotti" initials="S.D." surname="Dorigotti">
       <organization>KoanLogic</organization>
+
       <address>
         <postal>
-          <street>via Maso della Pieve 25/C</street>
+          <street>Via Maso della Pieve 25/C</street>
+
           <city>Bolzano</city>
+
           <region></region>
+
           <code>39100</code>
+
           <country>Italy</country>
         </postal>
+
         <email>stewy@koanlogic.com</email>
       </address>
     </author>
@@ -61,12 +72,18 @@
       <address>
         <postal>
           <street>Via di Sabbiuno 11/5</street>
+
           <city>Bologna</city>
+
           <region></region>
+
           <code>40139</code>
+
           <country>Italy</country>
         </postal>
+
         <phone>+39 051 644 82 68</phone>
+
         <email>tho@koanlogic.com</email>
       </address>
     </author>
@@ -118,20 +135,26 @@
       cookie to the Client, whose trust model needs to be taken into
       consideration when designing applications using SCS. The consequences of
       such discrepancy (e.g. deliberate deletion of a cookie, explicit
-      privilege revocation, etc.) will be explored and analyzed in Section
-      5.2.</t>
+      privilege revocation, etc.) will be explored and analyzed in <xref
+      target="sec_impact_of_scs_cookie_model"></xref>.</t>
 
       <t>The no-storage requirement, which is the key design constraint of
       SCS, makes it an ideal candidate in the following settings: <list
           style="letters">
-          <t>devices with little or no storage - typically embedded devices -
+          <t>devices with little or no storage -- typically embedded devices
           which provide functionality such as software updates, configuration,
           device monitoring, etc. via an HTTP interface;</t>
 
           <t>web applications with HA or load balancing requirements, which
           may delegate handling of the application state to clients instead of
-          using shared storage or forced peering.</t>
+          using shared storage or forced peering to enhance overall
+          parallelism.</t>
         </list></t>
+
+      <t>An SCS server can be implemented into a web application by means of a
+      user library that exposes the core SCS functionality, or transparently,
+      by hiding the "diskless session" facility behind a generic "session API"
+      abstraction.</t>
     </section>
 
     <section title="Requirements Language">
@@ -141,14 +164,16 @@
       target="RFC2119">RFC 2119</xref>.</t>
     </section>
 
-    <section anchor="sec_protocol" title="Protocol">
+    <section anchor="sec_scs_protocol" title="SCS Protocol">
       <t>The SCS protocol defines: <list style="symbols">
-          <t>a PDU, as a well-defined aggregate of cookies (Section 3.1);</t>
+          <t>a PDU, as a well-defined aggregate of cookies (<xref
+          target="sec_pdu_description"></xref>);</t>
 
           <t>the cryptographic transformations which manipulate the PDU field
-          (Section 3.2);</t>
+          (<xref target="sec_crypto_transform"></xref>);</t>
 
-          <t>the HTTP-based PDU exchange model (Section 3.3).</t>
+          <t>the HTTP-based PDU exchange model (<xref
+          target="sec_pdu_exchange"></xref>).</t>
         </list></t>
 
       <t>Note that the PDU is transmitted to the client as an opaque data
@@ -158,14 +183,15 @@
       activation on the browser. Only the server is involved in the PDU
       manipulation process.</t>
 
-      <t>In the following sections we define S to be one or more
+      <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
       load-balanced or HA environment) and C to be the client with a
       cookie-enabled browser.</t>
 
       <section anchor="sec_pdu_description" title="PDU Description">
-        <t>S and C exchange the same PDU (Section 3.3), which consists of a
-        set of interdependent cookies tied together by cryptographic
+        <t>S and C exchange the same PDU (<xref
+        target="sec_pdu_exchange"></xref>), which consists of a set of
+        interdependent cookies tied together by cryptographic
         transformations.</t>
 
         <t>Confidentiality is limited to the application state information
@@ -194,7 +220,7 @@
           protocol is completely agnostic as to state data layout.</t>
 
           <t>If the total size of the SCS_DATA cookie, including name, value
-          and attributes, exceeds 4096 bytes (Section 6.1. of <xref
+          and attributes, exceeds 4096 bytes (see Section 6.1. of <xref
           target="I-D.ietf-httpstate-cookie"></xref>), it is sliced into n
           SCS_DATA{n} cookies, each 4KB in size, so that the concatenation of
           their values ordered by cookie name (1, 2, ..., N) yields the
@@ -207,7 +233,9 @@
 
           <t>Anyway, in order to minimize both network bandwidth and client
           cookie store consumption, applications should try to upper bound
-          state data to some sensible value.</t>
+          state data to some sensible value. Also, an SCS implementation MAY
+          decide to limit the accepted state data to any value greater or
+          equal to 4KB.</t>
         </section>
 
         <!-- end of SCS_DATA -->
@@ -229,8 +257,8 @@
         <!-- end of SCS_TID -->
 
         <section anchor="sec_scs_iv" title="SCS_IV">
-          <t>Initialization Vector used for the encryption algorithm (Section
-          3.2).</t>
+          <t>Initialization Vector used for the encryption algorithm (<xref
+          target="sec_crypto_transform"></xref>).</t>
 
           <t>In order to avoid providing correlation information to a possible
           attacker with access to a sample of SCS PDUs, the IV MUST be created
@@ -256,11 +284,9 @@
 
       <section anchor="sec_crypto_transform" title="Crypto Transform">
         <t>SCS could potentially use any combination of primitives capable of
-        performing authenticated encryption.</t>
-
-        <t>In practice an encrypt-then-mac approach <xref
-        target="Kohno"></xref> with CBC-mode encryption and <xref
-        target="RFC2104">HMAC</xref> authentication was chosen.</t>
+        performing authenticated encryption. In practice an encrypt-then-mac
+        approach <xref target="Kohno"></xref> with CBC-mode encryption and
+        <xref target="RFC2104">HMAC</xref> authentication was chosen.</t>
 
         <t>The two algorithms MUST be associated with two independent
         keys.</t>
@@ -272,16 +298,19 @@
         to state information by another 4KB.</t>
 
         <t>The following conventions will be used in the algorithm description
-        (Section 3.2.5 and Section 3.2.4): <list style="symbols">
-            <t>Enc/Dec(): encryption/decryption functions (Section 3.2.1);</t>
+        (<xref target="sec_outbound_transform"></xref> and <xref
+        target="sec_inbound_transform"></xref>): <list style="symbols">
+            <t>Enc/Dec(): encryption/decryption functions (<xref
+            target="sec_cipher_set"></xref>);</t>
 
-            <t>HMAC(): authentication function (Section 3.2.1);</t>
+            <t>HMAC(): authentication function (<xref
+            target="sec_cipher_set"></xref>);</t>
 
-            <t>Comp/Uncomp(): compression/decompression functions (Section
-            3.2.2);</t>
+            <t>Comp/Uncomp(): compression/decompression functions (<xref
+            target="sec_compression"></xref>);</t>
 
-            <t>e/d(): cookie value encoding/decoding functions (Section
-            3.2.3);</t>
+            <t>e/d(): cookie value encoding/decoding functions (<xref
+            target="sec_cookie_encoding"></xref>);</t>
 
             <t>RAND(): random number generator <xref
             target="RFC4086"></xref>.</t>
@@ -295,116 +324,124 @@
               <t>HMAC-SHA1 with a 128 bit key for authenticity and
               integrity,</t>
             </list> which appear to be sufficiently secure in a wide range of
-          use cases <xref target="Bellare"></xref> and are widely
-          available.</t>
+          use cases <xref target="Bellare"></xref>, are widely available, and
+          can be implemented in a few kilobytes of memory, which is an
+          extremely valuable feature in constrained devices.</t>
 
           <t>One should consider using larger cryptographic key lengths (192
           or 256 bit) according to the actual security and overall system
           performance requirements.</t>
+        </section>
 
-          <section anchor="sec_compression" title="Compression">
-            <t>Compression, which may be useful or even necessary when
-            handling large quantities of data, is not compulsory (in such case
-            Comp/Uncomp are replaced by an identity matrix). If this function
-            is enabled, <xref target="RFC1951">DEFLATE</xref> format MUST be
-            supported.</t>
+        <!-- end Cipher Set -->
 
-            <t>Compression should not be enabled when handling relatively
-            short and entropic state (e.g. pseudo random session identifiers).
-            Instead, large and quite regular state blobs could receive a
-            significant boost when compressed.</t>
-          </section>
+        <section anchor="sec_compression" title="Compression">
+          <t>Compression, which may be useful or even necessary when handling
+          large quantities of data, is not compulsory (in such case
+          Comp/Uncomp are replaced by an identity matrix). If this function is
+          enabled, <xref target="RFC1951">DEFLATE</xref> format MUST be
+          supported.</t>
 
-          <!-- end Compression -->
+          <t>Compression should not be enabled when handling relatively short
+          and entropic state (e.g. pseudo random session identifiers).
+          Instead, large and quite regular state blobs could get a significant
+          boost when compressed.</t>
+        </section>
 
-          <section anchor="sec_cookie_encoding" title="Cookie Encoding">
-            <t><xref target="RFC4648">Base-64</xref> is used for
-            encoding/decoding of cookie values. It is quite efficient in terms
-            of space occupation and is very wide-spread.</t>
-          </section>
+        <!-- end Compression -->
 
-          <!-- end Cookie Encoding -->
+        <section anchor="sec_cookie_encoding" title="Cookie Encoding">
+          <t><xref target="RFC4648">Base-64</xref> is used for
+          encoding/decoding of cookie values. It is quite efficient in terms
+          of space occupation, is very wide-spread, and falls smoothly into
+          the encoding rules defined in Section 4.1.1 of <xref
+          target="I-D.ietf-httpstate-cookie"></xref>.</t>
+        </section>
 
-          <section anchor="sec_outbound_transform" title="Outbound Transform">
-            <t>The output data transformation as seen by the server (the only
-            actor which manipulates PDUs) is illustrated by the following
-            pseudo-code: <list style="numbers">
-                <t>iv = RAND()</t>
+        <!-- end Cookie Encoding -->
 
-                <t>atime = NOW</t>
+        <section anchor="sec_outbound_transform" title="Outbound Transform">
+          <t>The output data transformation as seen by the server (the only
+          actor which manipulates PDUs) is illustrated by the pseudo-code in
+          <xref target="fig_outbound_transform"></xref>.</t>
 
-                <t>data = Enc(Comp(state))</t>
+          <figure anchor="fig_outbound_transform">
+            <artwork align="center"><![CDATA[
+1.  iv = RAND()
+2.  atime = NOW
+3.  data = Enc(Comp(state))
+4.  tag = HMAC(e(data)||e(atime)||e(tid)||e(iv))
+                ]]></artwork>
+          </figure>
 
-                <t>tag = HMAC(e(data)||e(atime)||e(tid)||e(iv))</t>
-              </list></t>
+          <t>NOW is defined as the current timestamp of the server clock.</t>
 
-            <t>NOW is defined as the current timestamp of the server
-            clock.</t>
+          <t>Since the only user of the atime field is the server, it is
+          unnecessary for it to be synchronized with the client. However, if
+          multiple servers are active in a load-balancing configuration,
+          clocks SHOULD be synchronized to avoid errors in the calculation of
+          session expiry.</t>
 
-            <t>Since the only user of the atime field is the server, it is
-            unnecessary for it to be synchronized with the client. However, if
-            multiple servers are active in a load-balancing configuration,
-            clocks SHOULD be synchronized to avoid errors in the calculation
-            of session expiry.</t>
+          <t>If the length of (compressed) state is not a multiple of the
+          block size, its value MUST be filled with padding bytes of equal
+          value as the pad length -- equivalent to the scheme defined in
+          Section 6.3 of <xref target="RFC5652"></xref>.</t>
 
-            <t>If the length of (compressed) state is not a multiple of the
-            block size, its value will be filled with padding bytes of equal
-            value as the pad length -- see Section 6.3 of <xref
-            target="RFC5652"></xref>.</t>
+          <t>Hence the SCS PDU fields are created as follows:</t>
 
-            <t>Hence the SCS PDU fields are created as follows: <list
-                style="empty">
-                <t>SCS_ATIME = e(atime)</t>
+          <?rfc subcompact="yes" ?>
 
-                <t>SCS_AUTHTAG = e(tag)</t>
+          <t><list style="empty">
+              <t>SCS_ATIME = e(atime_as_an_ascii_string)</t>
 
-                <t>SCS_DATA = e(data)</t>
+              <t>SCS_AUTHTAG = e(tag)</t>
 
-                <t>SCS_TID = e(tid)</t>
+              <t>SCS_DATA = e(data)</t>
 
-                <t>SCS_IV = e(iv)</t>
-              </list></t>
-          </section>
+              <t>SCS_TID = e(tid)</t>
 
-          <!-- end Outbound Transform -->
+              <t>SCS_IV = e(iv)</t>
+            </list></t>
 
-          <section anchor="sec_inbound_transform" title="Inbound Transform">
-            <t>The inbound transformation is described by the following:</t>
+          <?rfc subcompact="no" ?>
+        </section>
 
-            <!-- TODO
-    <t>
-    <list style="numbers">
-    <t>
-        If (tid is available)
-    </t>
-    <t>
-        data' = d($SCS_DATA)
+        <!-- end Outbound Transform -->
+
+        <section anchor="sec_inbound_transform" title="Inbound Transform">
+          <t>The inbound transformation is described in <xref
+          target="fig_inbound_transform"></xref>.</t>
+
+          <figure anchor="fig_inbound_transform">
+            <artwork align="center"><![CDATA[
+1.  If (tid is available)
+2.      data' = d($SCS_DATA)
         atime' = d($SCS_ATIME)
         tid' = d($SCS_TID)
         iv' = d($SCS_IV)
         tag' = d($SCS_AUTHTAG)
-    </t>
-    <list>
-    </t>
--->
+3.      tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
+4.      If (tag == tag' && NOW - atime' <= session_max_age)
+5.          state = Uncomp(Dec(data'))
+6.      Else discard PDU
+7.  Else discard PDU
+                ]]></artwork>
+          </figure>
 
-            <t>If the cryptographic credentials (encryption and authentication
-            algorithms identified by SCS_TID) are unavailable (step 7.), the
-            inbound PDU cannot be interpreted correctly.</t>
+          <t>If the cryptographic credentials (encryption and authentication
+          algorithms identified by SCS_TID) are unavailable (step 7.), the
+          inbound PDU cannot be interpreted correctly.</t>
 
-            <t>This may happen for several reasons: for example, if a device
-            without storage has been reset and loses the credentials stored in
-            RAM, or if a server pool node desynchronizes, etc.</t>
+          <t>This may happen for several reasons: for example, if a device
+          without storage has been reset and loses the credentials stored in
+          RAM, or if a server pool node desynchronizes, etc.</t>
 
-            <t>Note that step 4. allows any altered packets or expired
-            sessions to be discarded, hence avoiding unnecessary state
-            decryption and decompression.</t>
-          </section>
-
-          <!-- end Inbound Transform -->
+          <t>Note that step 4. allows any altered packets or expired sessions
+          to be discarded, hence avoiding unnecessary state decryption and
+          decompression.</t>
         </section>
 
-        <!-- end Cipher Set -->
+        <!-- end Inbound Transform -->
       </section>
 
       <!-- end Crypto Transform -->
@@ -416,36 +453,36 @@
         used to "temporarily" store the data to be successively forwarded to
         S.</t>
 
-        <t>In brief, S and C exchange an immutable cookie data block (Section
-        3.1): the state is stored on the client at the first hop and then
-        restored on the server at the second, as in <xref
-        target="fig_pdu_exchange"></xref>.</t>
+        <t>In brief, S and C exchange an immutable cookie data block (<xref
+        target="sec_pdu_description"></xref>): the state is stored on the
+        client at the first hop and then restored on the server at the second,
+        as in <xref target="fig_pdu_exchange"></xref>.</t>
 
         <figure anchor="fig_pdu_exchange">
           <artwork align="center"><![CDATA[
-       1.  dump-state:
-                  Set-Cookie: SCS_DATA=...;
-                  Expires=...; Path=...;
-                  Domain=...;
-           S -->                           --> C
-                  Set-Cookie: SCS_TID=...;
-                  Expires=...; Path=...;
-                  Domain=...;
-                  ...
+1.  dump-state:
+           Set-Cookie: SCS_DATA=...;
+           Expires=...; Path=...;
+           Domain=...;
+    S -->                           --> C
+           Set-Cookie: SCS_TID=...;
+           Expires=...; Path=...;
+           Domain=...;
+           ...
 
-       2.  restore-state:
-                  Cookie: SCS_DATA=...;
-           C -->  Cookie: SCS_TID=...;     --> S
-                  ...
+2.  restore-state:
+           Cookie: SCS_DATA=...;
+    C -->  Cookie: SCS_TID=...;     --> S
+           ...
             ]]></artwork>
         </figure>
-
-        <t>SCS cookies MUST NOT be folded into a single HTTP header field, see
-        Section 3 of <xref target="I-D.ietf-httpstate-cookie"></xref>.</t>
 
         <t>Note that although SCS cookies always have the same naming, there
         can be multiple active SCS sessions in use at a given user-agent as
         long as the tuple (SCS PDU, Domain, Path) is different.</t>
+
+        <t>SCS cookies MUST NOT be folded into a single HTTP header field, see
+        Section 3 of <xref target="I-D.ietf-httpstate-cookie"></xref>.</t>
 
         <section anchor="sec_cookie_attributes" title="Cookie Attributes">
           <t>All SCS cookies belonging to the same PDU MUST carry the same
@@ -517,10 +554,10 @@
       transforms contemporarily: the currently instantiated one, and its
       predecessor.</t>
 
-      <t>Each transform set is associated with an attribute pair: "refresh"
-      and "expiry", which is used to identify the exposure limits (in terms of
-      time or quantity of encrypted and/or authenticated bytes, etc) of
-      related cryptographic material.</t>
+      <t>Each transform set SHOULD be associated with an attribute pair:
+      "refresh" and "expiry", which is used to identify the exposure limits
+      (in terms of time or quantity of encrypted and/or authenticated bytes,
+      etc) of related cryptographic material.</t>
 
       <t>In particular, the "refresh" attribute specifies the time limit for
       substitution of transform set T with new material T'. From that moment
@@ -536,16 +573,16 @@
 
       <figure anchor="fig_keylifetime">
         <artwork align="center"><![CDATA[
-       T' {not valid yet} |---------------------|----------------
-                          |  translation stage  |
-       T  ----------------|---------------------| {no longer valid}
-                        refresh         refresh + expiry
-            ]]></artwork>
+T' {not valid yet} |---------------------|----------------
+                   |  translation stage  |
+T  ----------------|---------------------| {no longer valid}
+                 refresh         refresh + expiry
+        ]]></artwork>
       </figure>
 
-      <t>Note that the duration of the HTTP session MUST fit within the
-      lifetime of a given transform set (i.e. from creation time until
-      "refresh" + "expiry").</t>
+      <t>As to <xref target="fig_keylifetime"></xref>, note that the duration
+      of the HTTP session MUST fit within the lifetime of a given transform
+      set (i.e. from creation time until "refresh" + "expiry").</t>
 
       <t>In practice, this should not be an obstacle because the longevity of
       the two entities (HTTP session and SCS transform set) should differ by
@@ -579,9 +616,9 @@
         in <xref target="Kohno"></xref>.</t>
 
         <t>Given a "provably-secure" encryption scheme and MAC (as for the
-        algorithms recommended in Section 3.2.1), Kohno et al. <xref
-        target="Kohno"></xref> demonstrate that their composition results in a
-        secure authenticated encryption scheme.</t>
+        algorithms recommended in <xref target="sec_cipher_set"></xref>),
+        Kohno et al. <xref target="Kohno"></xref> demonstrate that their
+        composition results in a secure authenticated encryption scheme.</t>
       </section>
 
       <section anchor="sec_impact_of_scs_cookie_model"
@@ -661,8 +698,9 @@
         </section>
 
         <section anchor="sec_cookie_deletion" title="Cookie Deletion">
-          <t>A direct consequence of the missing owner role in SCS is that a
-          client could intentionally delete its cookie and return nothing.</t>
+          <t>A direct, and important, consequence of the missing owner role in
+          SCS is that a client could intentionally delete its cookie and
+          return nothing.</t>
 
           <t>The application protocol has to be designed so there is no
           incentive to do so, for instance: <list style="symbols">
@@ -755,7 +793,9 @@
           and MAC</title>
 
           <author initials="T.K." surname="Kohno"></author>
+
           <author initials="A.P." surname="Palacio"></author>
+
           <author initials="J.B." surname="Black"></author>
 
           <date year="2003" />
@@ -775,7 +815,9 @@
     </references>
 
     <section anchor="ref-impl" title="Reference Implementation">
-      <t>...</t>
+      <t>A reference implementation (at present in very early stage) of the
+      SCS protocol can be found at <eref
+      target="http://github.com/koanlogic/libscs"></eref>.</t>
     </section>
   </back>
 </rfc>
