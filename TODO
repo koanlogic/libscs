@@ -4,3 +4,15 @@
 - php bindings
 - BSD licensed base64 codec
 - doxy framework
+- testing driver + test cases
+- openssl driver
+
+- on darwin with compression enabled I get:
+==96275== Conditional jump or move depends on uninitialised value(s)
+==96275==    at 0x10002AB3B: deflateEnd (in /usr/lib/libz.1.2.3.dylib)
+==96275==    by 0x10002B762: deflateSetDictionary (in /usr/lib/libz.1.2.3.dylib)
+==96275==    by 0x10002C914: deflate (in /usr/lib/libz.1.2.3.dylib)
+==96275==    by 0x100003020: do_compress (in ./test)
+==96275==    by 0x1000014E5: optional_compress (in ./test)
+==96275==    by 0x1000010F6: scs_encode (in ./test)
+==96275==    by 0x100000E5D: main (in ./test)

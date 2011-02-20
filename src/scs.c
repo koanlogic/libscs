@@ -59,7 +59,7 @@ static int get_atime (scs_t *ctx);
 static int optional_compress (scs_t *ctx, const uint8_t *st, size_t st_sz);
 static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *ctx);
-static int do_pad (scs_t *ctx);
+static int add_pad (scs_t *ctx);
 static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding);
 
 /* Decode support. */
@@ -72,6 +72,7 @@ static int atime_ok (scs_t *ctx);
 static int optional_uncompress (scs_t *ctx, scs_keyset_t *ks);
 static int decrypt_state (scs_t *ctx, scs_keyset_t *ks);
 static int remove_pad (scs_t *ctx);
+static int do_uncompress (scs_t *ctx);
 
 static void debug_print_cookies (scs_t *ctx);
 
@@ -163,7 +164,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         return SCS_ERR_CRYPTO;
 
     /* Make room for the SCS context structure. */
-    if ((s = calloc(1, sizeof *s)) == NULL)
+    if ((s = malloc(sizeof *s)) == NULL)
         return SCS_ERR_MEM;
 
     /* Initialize current keyset. */
@@ -207,35 +208,50 @@ void scs_term (scs_t *s)
 }
 
 /** \brief  ... */
-const char *scs_data (scs_t *scs)
+const char *scs_cookie_data (scs_t *ctx)
 {
-    return scs->atoms.b64_data;
+    return ctx->atoms.b64_data;
 }
 
 /** \brief  ... */
-const char *scs_atime (scs_t *scs)
+const char *scs_cookie_atime (scs_t *ctx)
 {
-    return scs->atoms.b64_atime;
+    return ctx->atoms.b64_atime;
 }
 
 /** \brief  ... */
-const char *scs_iv (scs_t *scs)
+const char *scs_cookie_iv (scs_t *ctx)
 {
-    return scs->atoms.b64_iv;
+    return ctx->atoms.b64_iv;
 }
 
 /** \brief  ... */
-const char *scs_authtag (scs_t *scs)
+const char *scs_cookie_authtag (scs_t *ctx)
 {
-    return scs->atoms.b64_tag;
+    return ctx->atoms.b64_tag;
 }
 
 /** \brief  ... */
-const char *scs_tid (scs_t *scs)
+const char *scs_cookie_tid (scs_t *ctx)
 {
-    return scs->atoms.b64_tid;
+    return ctx->atoms.b64_tid;
 }
 
+/** \brief ... */
+const uint8_t *scs_state (scs_t *ctx, size_t *pstate_sz)
+{
+    if (pstate_sz)
+        *pstate_sz = ctx->atoms.data_sz;
+
+    return ctx->atoms.data;
+}
+
+/** \brief ... */
+size_t scs_state_sz (scs_t *ctx)
+{
+    return ctx->atoms.data_sz;
+}
+ 
 /* Let the crypto toolkit handle PR generation of the block cipher IV. */
 static int get_random_iv (scs_t *ctx)
 {
@@ -280,17 +296,15 @@ static int optional_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
 
-    if (ks->comp)
+    /* Assume we have already passed through reset_atoms(). */
+    assert(ats->data_sz == sizeof ats->data);
+
+    if (!ks->comp)
     {
         ats->data_sz = state_sz;
         memcpy(ats->data, (uint8_t *) state, ats->data_sz);
         return 0;
     }
-
-    /* Set it to the maximum available, it will be updated later on 
-     * by do_compress().   
-     * Should have been alread set this way by reset_atoms(). */
-    ats->data_sz = sizeof ats->data;
 
     return do_compress(ctx, state, state_sz);
 }
@@ -299,7 +313,7 @@ static int encrypt_state (scs_t *ctx)
 {
     /* Pad data to please the block encyption cipher, if needed, then 
      * encrypt. */
-    if (do_pad(ctx)
+    if (add_pad(ctx)
             || D.enc(ctx))
         return -1;
 
@@ -394,10 +408,7 @@ static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
     zstr.opaque = Z_NULL;
 
     if ((ret = deflateInit(&zstr, Z_DEFAULT_COMPRESSION)) != Z_OK)
-    {
-        scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
-        return -1;
-    }
+        goto err;
 
     zstr.next_in = (Bytef *) state;
     zstr.avail_in = state_sz;
@@ -408,10 +419,7 @@ static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
     /* We can't overflow the output buffer as long as '*pout_sz' is the
      * real size of 'out'. */
     if ((ret = deflate(&zstr, Z_FINISH)) != Z_STREAM_END)
-    {
-        scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
-        goto err; 
-    }
+        goto err;
 
     ats->data_sz = zstr.total_out;
 
@@ -419,6 +427,7 @@ static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
 
     return 0;
 err:
+    scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
     deflateEnd(&zstr);
     return -1;
 #else
@@ -426,7 +435,7 @@ err:
 #endif  /* HAVE_LIBZ */
 }
 
-static int do_pad (scs_t *ctx)
+static int add_pad (scs_t *ctx)
 {
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
@@ -450,14 +459,8 @@ static int do_pad (scs_t *ctx)
         return -1;
     }
 
-    if (pad_len)
-    {
-        /* If the length of (compressed) state is not a multiple of the 
-         * block size, its value will be filled with padding bytes of equal 
-         * value as the pad length. */
-        memset(ats->data + *sz, pad_len, pad_len);
-        *sz += pad_len;
-    }
+    memset(ats->data + *sz, pad_len, pad_len);
+    *sz += pad_len;
 
     return 0;
 }
@@ -695,15 +698,17 @@ static int remove_pad (scs_t *ctx)
 {
     scs_atoms_t *ats = &ctx->atoms;
     size_t i, sz = ats->data_sz;
-    uint8_t *data = ats->data, *last = data + sz - 1;
+    uint8_t *data = ats->data, *padlen = data + sz - 1;
 
-    if (*last > sz) /* no pad */
-        return 0;
-
-    for (i = sz - 1; i > 0; --i)
+    for (i = sz - 1; i >= sz - *padlen; --i)
     {
-        if (data[i] != *last) 
-            break;
+        if (data[i] != *padlen)
+        {
+            scs_set_error(ctx, SCS_ERR_BAD_PAD, "wrong padding byte: "
+                    "expected %u, found %u", *padlen, data[i]);
+            return -1;
+        }
+
         ats->data_sz -= 1;
     }
 
@@ -715,8 +720,43 @@ static int optional_uncompress (scs_t *ctx, scs_keyset_t *ks)
     if (!ks->comp)
         return 0;
 
-    /* TODO */ 
+    return do_uncompress(ctx);
+}
+
+static int do_uncompress (scs_t *ctx)
+{
+#ifdef HAVE_LIBZ
+    int ret;
+    z_stream zstr;
+    scs_atoms_t *ats = &ctx->atoms;
+
+    zstr.zalloc = Z_NULL;
+    zstr.zfree = Z_NULL;
+    zstr.opaque = Z_NULL;
+
+    if ((ret = inflateInit(&zstr)) != Z_OK)
+        goto err;
+
+    zstr.next_in = (Bytef *) ats->data;
+    zstr.avail_in = ats->data_sz;
+
+    /* XXX should we use a temp buffer to avoid overwrite ? */
+    zstr.next_out = ats->data;
+    zstr.avail_out = sizeof ats->data;
+
+    if ((ret = inflate(&zstr, Z_FINISH)) != Z_STREAM_END)
+        goto err;
+
+    inflateEnd(&zstr);
+
+    return 0;
+err:
+    scs_set_error(ctx, SCS_ERR_COMPRESSION, "zlib error: %s", zError(ret));
+    inflateEnd(&zstr);
     return -1;
+#else   /* !HAVE_LIBZ */
+    assert(!"I'm not supposed to get there without zlib...");
+#endif  /* HAVE_LIBZ */
 }
 
 static void debug_print_cookies (scs_t *ctx)

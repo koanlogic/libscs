@@ -24,7 +24,8 @@ typedef enum
     SCS_ERR_DECODE,             /* Failed decoding. */
     SCS_ERR_WRONG_TID,          /* TID not found. */
     SCS_ERR_TAG_MISMATCH,       /* Supplied and computed tags don't match. */
-    SCS_ERR_SESSION_EXPIRED     /* session_max_age overrun. */
+    SCS_ERR_SESSION_EXPIRED,    /* "session_max_age" overrun. */
+    SCS_ERR_BAD_PAD             /* Bad padding found while decrypting state. */
 } scs_err_t;
 
 /**
@@ -61,13 +62,15 @@ int scs_decode (scs_t *ctx, const char *data, const char *atime,
 /** Dispose the supplied SCS context. */
 void scs_term (scs_t *ctx);
 
-/* 
- * Getter methods.
- */
-const char *scs_data (scs_t *scs);
-const char *scs_atime (scs_t *scs);
-const char *scs_iv (scs_t *scs);
-const char *scs_authtag (scs_t *scs);
-const char *scs_tid (scs_t *scs);
+/** Getter methods for base-64 (i.e. cookie ready) atoms. */
+const char *scs_cookie_data (scs_t *ctx);
+const char *scs_cookie_atime (scs_t *ctx);
+const char *scs_cookie_iv (scs_t *ctx);
+const char *scs_cookie_authtag (scs_t *ctx);
+const char *scs_cookie_tid (scs_t *ctx);
 
+/** Getter method for raw, clear-text state data and size. */
+const uint8_t *scs_state (scs_t *ctx, size_t *pstate_sz);
+size_t scs_state_sz (scs_t *ctx);
+ 
 #endif  /* !_SCS_H_ */
