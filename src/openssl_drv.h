@@ -2,6 +2,7 @@
 #define _OPENSSL_DRV_H_
 
 #include "scs.h"
+#include "scs_priv.h"
 
 int openssl_init (void);
 int openssl_gen_iv (scs_t *scs);

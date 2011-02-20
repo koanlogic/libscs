@@ -37,6 +37,12 @@ int cyassl_enc (scs_t *ctx)
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
 
+    if (ks->cipherset != AES_128_CBC_HMAC_SHA1)
+    {
+        scs_set_error(ctx, SCS_ERR_IMPL, "unsupported cipherset");
+        return -1;
+    }
+
     AesSetKey(&aes, ks->key, ks->key_sz, ats->iv, AES_ENCRYPTION);
     AesCbcEncrypt(&aes, ats->data, ats->data, ats->data_sz);
 
@@ -47,6 +53,12 @@ int cyassl_dec (scs_t *ctx, scs_keyset_t *ks)
 {
     Aes aes;
     scs_atoms_t *ats = &ctx->atoms;
+
+    if (ks->cipherset != AES_128_CBC_HMAC_SHA1)
+    {
+        scs_set_error(ctx, SCS_ERR_IMPL, "unsupported cipherset");
+        return -1;
+    }
 
     AesSetKey(&aes, ks->key, ks->key_sz, ats->iv, AES_DECRYPTION);
     AesCbcDecrypt(&aes, ats->data, ats->data, ats->data_sz);
