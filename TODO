@@ -5,6 +5,7 @@
 - BSD licensed base64 codec
 - doxy framework
 - testing driver + test cases
+- length constraint over produced cookies
 
 - on darwin with compression enabled I get:
 ==96275== Conditional jump or move depends on uninitialised value(s)

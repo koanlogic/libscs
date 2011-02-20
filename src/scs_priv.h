@@ -26,17 +26,6 @@
 #define COMP_LENGTH(inlen)          \
     ((inlen) + 6 + (5 * (((inlen) % 16384) + 1)))
 
-/* Maximum size of Cookie (TODO shorten to take care of attributes). */
-#define SCS_COOKIE_SIZE_MAX 4096
-
-/* Maximum length of various transform identifiers 
- * (TODO override via configure). */
-#define SCS_TID_MAX     64
-#define SCS_ATIME_MAX   32
-#define SCS_IV_MAX      128
-#define SCS_TAG_MAX     64
-#define SCS_DATA_MAX    8192    /* Maximum uncompressed state size. */
-
 /** 
  * Placeholder for keyset configuration data.
  */

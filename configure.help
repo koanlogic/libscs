@@ -52,6 +52,8 @@ OPTION can be defined as follows:
 [Package-specific Options (SCS)]
 --crypto=(openssl or cyassl)    select crypto toolkit to use [openssl]
 --gnu_debug                     enable debugging with GCC/GBD
+--extra-cflags=(any CFLAG)      add any CFLAGS (e.g. -DSCS_DATA_MAX=16384) to 
+                                statically trim specific protocol parameters
 
 Legend:
   <*>: required dependency

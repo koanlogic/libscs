@@ -9,6 +9,32 @@
 #include <stdint.h>
 #include <time.h>
 
+/**
+ * Maximum length of various transform identifiers.
+ * May be overwritten at configuration time, e.g.: 
+ *      $ makl-conf --extra-cflags="-DSCS_DATA_MAX=16384 -DSCS_TID_MAX=32"
+ * to double the SCS_DATA_MAX parameter and halve the TID.
+ */ 
+#ifndef SCS_TID_MAX
+  #define SCS_TID_MAX   64
+#endif  /* !SCS_TID_MAX */
+
+#ifndef SCS_ATIME_MAX
+  #define SCS_ATIME_MAX 32
+#endif  /* !SCS_ATIME_MAX */
+
+#ifndef SCS_IV_MAX
+  #define SCS_IV_MAX    128
+#endif  /* !SCS_IV_MAX */
+
+#ifndef SCS_TAG_MAX
+  #define SCS_TAG_MAX   64
+#endif  /* !SCS_TAG_MAX */
+
+#ifndef SCS_DATA_MAX
+  #define SCS_DATA_MAX  8192    /* Maximum uncompressed state size. */
+#endif  /* !SCS_DATA_MAX */
+
 /** 
  * Error codes. 
  */
