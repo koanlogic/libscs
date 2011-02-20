@@ -1,1 +1,10 @@
-TODO
+SCS is a cryptographic protocol layered on top of the HTTP cookie
+facility [I-D.ietf-httpstate-cookie], that allows an origin server to
+handle clients' session state without storing it locally.
+
+An SCS enabled server delegates the application state storage to the
+client (e.g. a browser) - which basically acts as a remote storage
+device.  A set of cryptographic transformations is used to ensure
+that information authenticity and confidentiality attributes of state
+data have the same characteristics as for typical "server-side"
+sessions.
