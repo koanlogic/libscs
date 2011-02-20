@@ -99,28 +99,49 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
+    <!-- 
       <t>This document provides an overview of SCS, a cryptographic protocol
       aimed at the protection of client-side HTTP sessions, i.e. sessions in
       which the application state is held entirely on the client in the form
       of HTTP cookies.</t>
+     -->
+
+      <t>This document provides an overview of SCS, a cryptographic protocol
+      layered on top of the HTTP cookie facility, that allows an origin server
+      to handle session state without storing it locally.</t>
+
+      <t>Its typical use cases include devices with little or no storage
+      offering some functionality via an HTTP interface, and web applications
+      with HA or load balancing requirements which may want to handle 
+      application state without the need to synchronize the pool through 
+      shared storage or peering.</t>
+
+      <t>Nevertheless, its security properties allows it to be used whenever
+      privacy and integrity of cookies is a concern, at the cost of increased
+      server CPU and bandwidth usage, and of some "credential-ownership"
+      implications which will be thoroughly analysed.</t>
     </abstract>
   </front>
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
+    <!--
       <t>SCS is a cryptographic protocol aimed at protecting client-side HTTP
       sessions, i.e. sessions in which the application state (for example,
       whether or not authentication credentials have been provided) is held
       entirely by the client in the form of <xref
       target="I-D.ietf-httpstate-cookie">cookies</xref></t>
+     -->
 
-      <t>SCS allows HTTP servers to handle application-level sessions in a
-      completely stateless manner.</t>
+      <t>SCS is a cryptographic protocol layered on top of the HTTP cookie 
+      facility <xref target="I-D.ietf-httpstate-cookie" />, that allows an 
+      origin server to handle clients' session state without storing it 
+      locally.</t>
 
       <t>An SCS enabled server delegates the application state storage to the
       client (e.g. a browser) - which basically acts as a remote storage
       device. A set of cryptographic transformations is used to ensure that
-      confidentiality and information authenticity attributes of state data
+      information authenticity and confidentiality attributes of state data
       have the same characteristics as for typical "server-side" sessions.</t>
 
       <t>Anyway, a peculiar difference between SCS and "server-side" cookie
@@ -154,15 +175,15 @@
       <t>An SCS server can be implemented into a web application by means of a
       user library that exposes the core SCS functionality and leaves explicit
       control over SCS cookies to the programmer, or transparently, by hiding 
-      the "diskless session" facility behind a generic "session API" 
+      the "diskless session" facility behind a generic session API 
       abstraction.</t>
     </section>
 
     <section title="Requirements Language">
       <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
       "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-      document are to be interpreted as described in <xref
-      target="RFC2119">RFC 2119</xref>.</t>
+      document are to be interpreted as described in 
+      <xref target="RFC2119" />.</t>
     </section>
 
     <section anchor="sec_scs_protocol" title="SCS Protocol">
@@ -621,7 +642,7 @@ T  ----------------|---------------------| {no longer valid}
         in <xref target="Kohno"></xref>.</t>
 
         <t>Given a "provably-secure" encryption scheme and MAC (as for the
-        algorithms recommended in <xref target="sec_cipher_set"></xref>),
+        algorithms mandated in <xref target="sec_cipher_set"></xref>),
         Kohno et al. <xref target="Kohno"></xref> demonstrate that their
         composition results in a secure authenticated encryption scheme.</t>
       </section>
