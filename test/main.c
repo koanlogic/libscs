@@ -15,7 +15,6 @@ int main (void)
     scs_t *scs = NULL;
     uint8_t k[16] = { 'd', 'e', 'a', 'd', 'b', 'e', 'e', 'f' }, 
             hk[20] = { 'D', 'E', 'A', 'D', 'B', 'E', 'E', 'F' };
-
     buf_t data, iv, authtag, atime, tid;
 
     data[0] = iv[0] = authtag[0] = atime[0] = '\0';
@@ -23,7 +22,7 @@ int main (void)
     if (scs_init("tid", AES_128_CBC_HMAC_SHA1, k, hk, 1, 3600, &scs) != SCS_OK)
         goto err;
 
-    printf("supplied state: %s\n", COOKIE);
+    printf("supplied state (len=%zu): %s\n", strlen(COOKIE) + 1, COOKIE);
 
     if (scs_encode(scs, (uint8_t *) COOKIE, strlen(COOKIE) + 1))
         goto err;
@@ -37,7 +36,8 @@ int main (void)
     if (scs_decode(scs, data, atime, iv, authtag, tid))
         goto err;
 
-    printf("decoded state: %s\n", scs_state(scs, NULL));
+    printf("decoded state (len=%zu): %s\n", 
+            scs_state_sz(scs), scs_state(scs, NULL));
 
     scs_term(scs);
 

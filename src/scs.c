@@ -747,6 +747,8 @@ static int do_uncompress (scs_t *ctx)
     if ((ret = inflate(&zstr, Z_FINISH)) != Z_STREAM_END)
         goto err;
 
+    ats->data_sz = zstr.total_out;
+
     inflateEnd(&zstr);
 
     return 0;
