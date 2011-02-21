@@ -112,11 +112,11 @@
 
       <t>Its typical use cases include devices with little or no storage
       offering some functionality via an HTTP interface, and web applications
-      with HA or load balancing requirements which may want to handle 
-      application state without the need to synchronize the pool through 
+      with High Availability or load balancing requirements which may want to
+      handle application state without the need to synchronize the pool through
       shared storage or peering.</t>
 
-      <t>Nevertheless, its security properties allows it to be used whenever
+      <t>Nevertheless, its security properties allow it to be used whenever
       privacy and integrity of cookies is a concern, at the cost of increased
       server CPU and bandwidth usage, and of some "credential-ownership"
       implications which will be thoroughly analysed.</t>
@@ -172,7 +172,7 @@
           parallelism.</t>
         </list></t>
 
-      <t>An SCS server can be implemented into a web application by means of a
+      <t>An SCS server can be implemented within a web application by means of a
       user library that exposes the core SCS functionality and leaves explicit
       control over SCS cookies to the programmer, or transparently, by hiding 
       the "diskless session" facility behind a generic session API 
@@ -208,7 +208,7 @@
       <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
       load-balanced or HA environment) and C to be the client with a
-      cookie-enabled browser, or UA with equivalent capabilities.</t>
+      cookie-enabled browser, or User Agent with equivalent capabilities.</t>
 
       <section anchor="sec_pdu_description" title="PDU Description">
         <t>S and C exchange the same PDU (<xref
@@ -234,7 +234,7 @@
           <t>If the received SCS_ATIME value is older than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
-          therefore rejected.</t>
+          is therefore rejected.</t>
         </section>
 
         <!-- end of SCS_ATIME -->
@@ -513,7 +513,7 @@
         <section anchor="sec_cookie_attributes" title="Cookie Attributes">
           <t>All SCS cookies belonging to the same PDU MUST carry the same
           attributes' set. This is not elegant nor bandwidth-friendly
-          solution, but it is necessary in order to guarantee the PDU
+          solution, but it is necessary in order to guarantee PDU
           coherence.</t>
 
           <t>In the following sub paragraphs a series of recommendations is
@@ -606,9 +606,9 @@ T  ----------------|---------------------| {no longer valid}
         ]]></artwork>
       </figure>
 
-      <t>As to <xref target="fig_keylifetime"></xref>, note that the duration
-      of the HTTP session MUST fit within the lifetime of a given transform
-      set (i.e. from creation time until "refresh" + "expiry").</t>
+      <t>As shown in <xref target="fig_keylifetime"></xref>, the duration of the
+      HTTP session MUST fit within the lifetime of a given transform set (i.e.
+      from creation time until "refresh" + "expiry").</t>
 
       <t>In practice, this should not be an obstacle because the longevity of
       the two entities (HTTP session and SCS transform set) should differ by
@@ -655,8 +655,8 @@ T  ----------------|---------------------| {no longer valid}
         his/her application.</t>
 
         <t>In the following paragraphs, a set of different attack scenarios
-        (together with corresponding countermeasures) are identified and
-        analyzed.</t>
+        (together with corresponding countermeasures where applicable) are
+        identified and analyzed.</t>
 
         <section anchor="sec_old_cookie_replay" title="Old cookie replay">
           <t>SCS doesn't address replay of old cookie values.</t>
@@ -763,7 +763,16 @@ T  ----------------|---------------------| {no longer valid}
 
       <section anchor="sec_advantages"
                title="Advantages of SCS over Server-side Sessions">
-        <t>None of the common vulnerabilities of server-side sessions (SID
+
+        <t>Note that all the abovementioned vulnerabilities also apply to
+        typical server-side sessions, making SCS at least as secure (based on
+        the current analysis), but there are a few good reasons to
+        consider its security level considerably enhanced.</t>
+
+        <t>First of all consider the extra confidentiality feature which
+        protects cookie state information which is normally plain-text.</t>
+
+        <t>Furthermore, none of the common vulnerabilities of server-side sessions (SID
         prediction, SID brute forcing, session fixation <xref
         target="Kolsec"></xref>) can be exploited when using SCS, unless the
         attacker possesses encryption and HMAC keys (both current ones and
