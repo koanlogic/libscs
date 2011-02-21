@@ -378,8 +378,11 @@
 
         <section anchor="sec_cookie_encoding" title="Cookie Encoding">
           <t><xref target="RFC4648">Base-64</xref> is used for
-          encoding/decoding of cookie values. It is quite efficient in terms
-          of space occupation, is very wide-spread, and falls smoothly into
+          encoding/decoding of SCS cookie values. It is 
+          <!--
+          quite efficient in terms of space occupation, is 
+          -->
+          very wide-spread, and falls smoothly into
           the encoding rules defined in Section 4.1.1 of <xref
           target="I-D.ietf-httpstate-cookie"></xref>.</t>
         </section>
@@ -455,12 +458,13 @@
           </figure>
 
           <t>If the cryptographic credentials (encryption and authentication
-          algorithms identified by SCS_TID) are unavailable (step 7.), the
-          inbound PDU cannot be interpreted correctly.</t>
+          algorithms and keys identified by SCS_TID) are unavailable (step 7.),
+          the inbound PDU cannot be interpreted correctly.</t>
 
-          <t>This may happen for several reasons: for example, if a device
-          without storage has been reset and loses the credentials stored in
-          RAM, or if a server pool node desynchronizes, etc.</t>
+          <t>This may happen for several reasons: e.g., if a device without 
+          storage has been reset and loses the credentials stored in RAM, if 
+          a server pool node desynchronizes, or in case of a key compromise 
+          that forces the invalidation of all available TIDs, etc.</t>
 
           <t>Note that step 4. allows any altered packets or expired sessions
           to be discarded, hence avoiding unnecessary state decryption and
@@ -625,7 +629,7 @@ T  ----------------|---------------------| {no longer valid}
     </section>
 
     <section anchor="sec_ack" title="Acknowledgements">
-      <t>We would like to thank David Wagner, Lorenzo Cavallaro, ... for their
+      <t>We would like to thank David Wagner and Lorenzo Cavallaro for their
       valuable feedback on this document.</t>
     </section>
 
@@ -767,13 +771,13 @@ T  ----------------|---------------------| {no longer valid}
         <t>Note that all the abovementioned vulnerabilities also apply to
         typical server-side sessions, making SCS at least as secure (based on
         the current analysis), but there are a few good reasons to
-        consider its security level considerably enhanced.</t>
+        consider its security level enhanced.</t>
 
-        <t>First of all consider the extra confidentiality feature which
-        protects cookie state information which is normally plain-text.</t>
+        <t>First of all, the confidentiality feature provided by SCS protects
+        cookie state information which is normally plain-text.</t>
 
-        <t>Furthermore, none of the common vulnerabilities of server-side sessions (SID
-        prediction, SID brute forcing, session fixation <xref
+        <t>Furthermore, none of the common vulnerabilities of server-side 
+        sessions (SID prediction, SID brute forcing, session fixation <xref
         target="Kolsec"></xref>) can be exploited when using SCS, unless the
         attacker possesses encryption and HMAC keys (both current ones and
         those relating to the previous set of credentials).</t>
