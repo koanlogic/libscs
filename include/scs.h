@@ -48,6 +48,7 @@ typedef enum
     SCS_ERR_COMPRESSION,        /* Compression library error. */
     SCS_ERR_IMPL,               /* Hit an implementation limit. */
     SCS_ERR_DECODE,             /* Failed decoding. */
+    SCS_ERR_ENCODE,             /* Failed encoding. */
     SCS_ERR_WRONG_TID,          /* TID not found. */
     SCS_ERR_TAG_MISMATCH,       /* Supplied and computed tags don't match. */
     SCS_ERR_SESSION_EXPIRED,    /* "session_max_age" overrun. */

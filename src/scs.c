@@ -326,29 +326,35 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     scs_atoms_t *ats = &ctx->atoms;
     enum { NUM_ATOMS = 4 };
     struct {
-        char *raw, *enc;
+        const char *id;
+        uint8_t *raw; 
+        char *enc;
         size_t raw_sz, enc_sz;
     } A[NUM_ATOMS] = {
         { 
-            (char *) ats->data,
+            "SCS_DATA",
+            ats->data,
             ats->b64_data,
             ats->data_sz,
             BASE64_LENGTH(ats->data_sz)
         },
         { 
-            ats->atime,
+            "SCS_ATIME",
+            (uint8_t *) ats->atime,
             ats->b64_atime,
             strlen(ats->atime),
             sizeof(ats->b64_atime)
         },
         {
-            ks->tid,
+            "SCS_TID",
+            (uint8_t *) ks->tid,
             ats->b64_tid,
             strlen(ks->tid),
             sizeof(ats->b64_tid)
         },
         {
-            (char *) ats->iv,
+            "SCS_IV",
+            ats->iv,
             ats->b64_iv,
             ks->block_sz,
             BASE64_LENGTH(ks->block_sz)
@@ -359,16 +365,25 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     if (!skip_encoding)
     {
         for (i = 0; i < NUM_ATOMS; ++i)
-            base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz);
+        {
+            if (base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz))
+            {
+                scs_set_error(ctx, SCS_ERR_ENCODE, "%s encode failed", A[i].id);
+                return -1;
+            }
+        }
     }
-        
+
     /* Create auth tag. */
     if (D.tag(ctx))
         return -1;
 
     /* Base-64 encode the auth tag. */
-    base64_encode((const char *) ats->tag, ats->tag_sz, 
-            ats->b64_tag, sizeof ats->b64_tag);
+    if (base64_encode(ats->tag, ats->tag_sz, ats->b64_tag, sizeof ats->b64_tag))
+    {
+        scs_set_error(ctx, SCS_ERR_ENCODE, "tag encode failed", A[i].id);
+        return -1;
+    }
 
     return 0;
 }
@@ -377,7 +392,10 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
 static void reset_atoms (scs_atoms_t *ats)
 {
     memset(ats, 0, sizeof *ats); 
-    ats->data_sz = sizeof(ats->data);   /* Set to the maximum available. */
+
+    /* Set to the maximum available. */
+    ats->data_sz = sizeof(ats->data);
+    ats->tag_sz = sizeof(ats->tag);
 
     return;
 }
@@ -509,7 +527,7 @@ static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid)
     size_t raw_tid_len = sizeof raw_tid - 1;
 
     /* Make sure we have room for the terminating NUL char. */
-    if (!base64_decode(tid, strlen(tid), raw_tid, &raw_tid_len))
+    if (base64_decode(tid, strlen(tid), (uint8_t *) raw_tid, &raw_tid_len))
     {
         scs_set_error(ctx, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
         return NULL;
@@ -598,35 +616,35 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
     enum { NUM_ATOMS = 4 };
     struct {
         const char *id;
-        char *raw;
+        uint8_t *raw;
         size_t *raw_sz;
         const char *enc;
         size_t enc_sz;
     } A[NUM_ATOMS] = {
         {
             "SCS_DATA",
-            (char *) ats->data,
+            ats->data,
             &ats->data_sz,      /* Initially set to data_capacity. */
             ats->b64_data,
             strlen(ats->b64_data)
         },
         {
             "SCS_ATIME",
-            ats->atime,
+            (uint8_t *) ats->atime,
             &atime_sz,
             ats->b64_atime,
             strlen(ats->b64_atime)
         },
         {
             "SCS_IV",
-            (char *) ats->iv,
+            ats->iv,
             &iv_sz,
             ats->b64_iv,
             strlen(ats->b64_iv)
         },
         {
             "SCS_AUTHTAG",
-            (char *) ats->tag,
+            ats->tag,
             &ats->tag_sz,
             ats->b64_tag,
             strlen(ats->b64_tag)
@@ -635,7 +653,7 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
 
     for (i = 0; i < NUM_ATOMS; ++i)
     {
-        if (!base64_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
+        if (base64_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
         {
             scs_set_error(ctx, SCS_ERR_DECODE, "%s decoding failed", A[i].id);
             return -1;
