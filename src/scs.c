@@ -208,8 +208,11 @@ void scs_term (scs_t *s)
     return;
 }
 
-/** \brief  ... */
-const char *scs_err (scs_t *ctx) { return ctx->estr; }
+/** \brief  Return last error string. */
+const char *scs_err (scs_t *ctx) 
+{
+    return ctx->estr;
+}
 
 /**
  *  \}
@@ -243,18 +246,17 @@ static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
 static int split_cookie (scs_t *ctx, const char *cookie, 
         char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1])
 {
-    size_t sz, n;
+    size_t n;
     char cp[SCS_COOKIE_MAX] = { '\0' }, *pcp = &cp[0];
     enum { DATA = 0, ATIME, TID, IV, TAG, NUM_ATOMS };
     char *atoms[NUM_ATOMS + 1], **ap;
 
     /* Make a copy that we can freely clobber with strsep(). */
-    if ((sz = strlen(cookie)) >= SCS_COOKIE_MAX)
+    if (strlcpy(cp, cookie, sizeof cp) >= sizeof cp)
     {
         scs_set_error(ctx, SCS_ERR_FRAMING, "SCS_COOKIE_MAX exceeded");
         return -1;
     }
-    memcpy(cp, cookie, sz + 1);
 
     /* Put the expected 5 atoms on corresponding atoms[] slots, also doing
      * trivial integrity check (i.e. correct number and non-empty atoms.) */
@@ -282,8 +284,7 @@ static int split_cookie (scs_t *ctx, const char *cookie,
 
     /* Make a copy of the supplied authtag that can be compared with the
      * re-computed authtag. */
-    memcpy(tag, atoms[TAG],
-            MIN(BASE64_LENGTH(SCS_TAG_MAX) + 1, strlen(atoms[TAG]) + 1));
+    (void) strlcpy(tag, atoms[TAG], BASE64_LENGTH(SCS_TAG_MAX) + 1);
 
     /* Attach atoms to context. */
     return attach_atoms(ctx, atoms[DATA], atoms[ATIME], atoms[TID], 
@@ -377,15 +378,10 @@ static int optional_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz)
     return do_deflate(ctx, state, state_sz);
 }
 
+/* Pad data to please the block encyption cipher, if needed, then encrypt. */
 static int encrypt_state (scs_t *ctx)
 {
-    /* Pad data to please the block encyption cipher, if needed, then 
-     * encrypt. */
-    if (add_pad(ctx)
-            || D.enc(ctx))
-        return -1;
-
-    return 0;
+    return (add_pad(ctx) || D.enc(ctx));
 }
 
 static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
@@ -459,7 +455,7 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
 /* Reset protocol atoms values. */
 static void reset_atoms (scs_atoms_t *ats)
 {
-    memset(ats, 0, sizeof *ats); 
+    memset(ats, 0, sizeof *ats);
 
     /* Set to the maximum available. */
     ats->data_sz = sizeof(ats->data);
@@ -556,8 +552,8 @@ static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
 {
     scs_err_t rc;
 
-    /* Silently truncate tid if longer than sizeof ks->tid (64 bytes). */
-    (void) snprintf(ks->tid, sizeof ks->tid, "%s", tid);
+    if (strlcpy(ks->tid, tid, sizeof ks->tid) >= sizeof ks->tid)
+        return SCS_ERR_BAD_TID;
 
     /* Set the compression flag as requested.  In case zlib is not available 
      * on the platform, ignore user request and set to false. */
@@ -579,7 +575,7 @@ static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
             goto err;
     }
 
-    /* Internalise keying material. */
+    /* Internalize keying material. */
     memcpy(ks->key, key, ks->key_sz);
     memcpy(ks->hkey, hkey, ks->hkey_sz);
 
@@ -604,12 +600,17 @@ static scs_keyset_t *retr_keyset (scs_t *ctx)
 
     raw_tid[raw_tid_len] = '\0';
 
-    if (ctx->cur_keyset.active && !strcmp(raw_tid, ctx->cur_keyset.tid))
+    /* Try active keyset first. */
+    if (ctx->cur_keyset.active 
+            && !strcmp(raw_tid, ctx->cur_keyset.tid))
         return &ctx->cur_keyset;
 
-    if (ctx->prev_keyset.active && !strcmp(raw_tid, ctx->prev_keyset.tid))
+    /* Then backup. */
+    if (ctx->prev_keyset.active 
+            && !strcmp(raw_tid, ctx->prev_keyset.tid))
         return &ctx->prev_keyset;
 
+    /* Not found. */
     scs_set_error(ctx, SCS_ERR_WRONG_TID, "tid \'%s\' not found", raw_tid);
     return NULL;
 }
@@ -666,15 +667,12 @@ static int attach_atoms (scs_t *ctx, const char *b64_data,
 
     for (i = 0; i < NUM_ATOMS; ++i)
     {
-        if (A[i].b64_sz >= A[i].max_sz)
+        if (strlcpy(A[i].cp, A[i].b64, A[i].max_sz) >= A[i].max_sz)
         {
             scs_set_error(ctx, SCS_ERR_IMPL, "%s too long: %zu vs %zu", 
                     A[i].cookie, A[i].b64_sz, A[i].max_sz);
             return -1;
         }
-
-        memcpy(A[i].cp, A[i].b64, A[i].b64_sz);
-        A[i].cp[A[i].b64_sz] = '\0';
     }
 
     return 0;
@@ -744,7 +742,7 @@ static int tags_match (scs_t *ctx, const char *tag)
         return 0;
 
     scs_set_error(ctx, SCS_ERR_TAG_MISMATCH, 
-            "tag mismatch: \'%s\' != \'%s\'", ats->b64_tag, tag);
+            "tag mismatch: <%s> != <%s>", ats->b64_tag, tag);
 
     return -1;
 }
@@ -804,10 +802,7 @@ static int remove_pad (scs_t *ctx)
 
 static int optional_inflate (scs_t *ctx, scs_keyset_t *ks)
 {
-    if (!ks->comp)
-        return 0;   /* no-op ! */
-
-    return do_inflate(ctx);
+    return !ks->comp ? 0 : do_inflate(ctx);
 }
 
 static int do_inflate (scs_t *ctx)

@@ -57,7 +57,8 @@ typedef enum
     SCS_ERR_TAG_MISMATCH,       /* Supplied and computed tags don't match. */
     SCS_ERR_SESSION_EXPIRED,    /* "session_max_age" overrun. */
     SCS_ERR_BAD_PAD,            /* Bad padding found while decrypting state. */
-    SCS_ERR_FRAMING             /* Framing error of the SCS cookie. */
+    SCS_ERR_FRAMING,            /* Framing error of the SCS cookie. */
+    SCS_ERR_BAD_TID             /* Supplied TID string is too long. */
 } scs_err_t;
 
 /**
