@@ -8,6 +8,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <errno.h>
+
 #include "scs_conf.h"
 #include "scs.h"
 #include "utils.h"
@@ -57,8 +58,8 @@ static void reset_atoms (scs_atoms_t *atoms);
 /* Encode support. */
 static int get_random_iv (scs_t *ctx);
 static int get_atime (scs_t *ctx);
-static int optional_compress (scs_t *ctx, const uint8_t *st, size_t st_sz);
-static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz);
+static int optional_deflate (scs_t *ctx, const uint8_t *st, size_t st_sz);
+static int do_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *ctx);
 static int add_pad (scs_t *ctx);
 static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding);
@@ -72,19 +73,25 @@ static int attach_atoms (scs_t *ctx, const char *b64_data,
 static int decode_atoms (scs_t *ctx, scs_keyset_t *ks);
 static int tags_match (scs_t *ctx, const char *tag);
 static int atime_ok (scs_t *ctx);
-static int optional_uncompress (scs_t *ctx, scs_keyset_t *ks);
+static int optional_inflate (scs_t *ctx, scs_keyset_t *ks);
 static int decrypt_state (scs_t *ctx, scs_keyset_t *ks);
 static int remove_pad (scs_t *ctx);
-static int do_uncompress (scs_t *ctx);
+static int do_inflate (scs_t *ctx);
 static int split_cookie (scs_t *ctx, const char *cookie, 
         char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1]);
-static void *do_decode (scs_t *ctx, const char *tag, size_t *pstate_sz);
-
-static void debug_print_cookies (scs_t *ctx);
+static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz);
 
 /**
- *  \brief  Given the supplied \p state blob return the SCS cookie.
- */ 
+ *  \{
+ */
+
+/**
+ *  \brief  Given the supplied \p state blob return the SCS cookie string
+ *          into the \p cookie char buffer.  The \p cookie must be at least
+ *          SCS_COOKIE_MAX bytes long and pre-allocated by the caller.
+ *          When an error occurs \c NULL is returned and the supplied \p ctx 
+ *          can be inspected for failure cause -- \sa scs_err function.
+ */
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX])
 {
@@ -94,8 +101,7 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
 
     reset_atoms(ats);
 
-    /* New encode algorithm:
-     *  iv = rand()
+    /*  iv = rand()
      *  atime = now()
      *  Trans = (compression enabled) ? Deflate : Id
      *  state' = Trans(state)
@@ -105,11 +111,10 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
      *               b64(tid)   || len(b64(tid))   ||
      *               b64(iv)    || len(b64(iv)))
      *  scs_cookie = 
-     *      "b64(data) '|' b64(atime) '|' b64(tid) '|' b64(iv) '|' b64(tag)"
-     */
+     *      "b64(data) '|' b64(atime) '|' b64(tid) '|' b64(iv) '|' b64(tag)" */
     if (get_random_iv(ctx) 
             || get_atime(ctx) 
-            || optional_compress(ctx, state, state_sz) 
+            || optional_deflate(ctx, state, state_sz) 
             || encrypt_state(ctx) 
             || create_tag(ctx, ks, !skip_atoms_encoding))
     {
@@ -117,136 +122,26 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         return NULL;
     }
 
+    /* Given all the atoms, create the encoded cookie value. */
     return do_cookie(ctx, cookie);
 }
 
-/** \brief  Decode the supplied SCS cookie.  If verification is successful, 
-  *         the embedded state blob is returned. */
+/** \brief  Decode the supplied SCS \p cookie string.  
+ *          If verification is successful, the embedded state blob is returned
+ *          to the caller whose length is found at \p *pstate_sz. */
 void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
 {
     char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1];
 
+    /* Cleanup the context. */
     reset_atoms(&ctx->atoms);
 
+    /* Get SCS atoms. */
     if (split_cookie(ctx, cookie, tag))
         return NULL;
 
-    return do_decode(ctx, tag, pstate_sz); 
-}
-
-static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
-{
-    char *p;
-    size_t i, sz, tot = SCS_COOKIE_MAX;
-    scs_atoms_t *ats = &ctx->atoms;
-    enum { NUM_ATOMS = 5 };
-    const char *atoms[NUM_ATOMS] = {
-        ats->b64_data,
-        ats->b64_atime,
-        ats->b64_tid,
-        ats->b64_iv,
-        ats->b64_tag
-    };
-
-    for (i = 0, p = cookie; i < NUM_ATOMS; ++i, tot -= sz, p += sz)
-    {
-        if (i != 0)
-            *p++ = '|';
-
-        if ((sz = strlen(atoms[i])) > tot - 2)  /* take care of '|' and '\0' */
-        {
-            scs_set_error(ctx, SCS_ERR_IMPL, "SCS_COOKIE_MAX limit hit");
-            return NULL;
-        }
-
-        memcpy(p, atoms[i], sz);
-    }
-
-    *p = '\0';
-
-    return cookie;
-}
-
-/* Split SCS atoms.  Also save the base-64 encoded tag into 'tag' since 
- * create_tag() will overwrite the ats->b64_tag field. */
-static int split_cookie (scs_t *ctx, const char *cookie, 
-        char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1])
-{
-    size_t sz, n;
-    char cp[SCS_COOKIE_MAX] = { '\0' }, *pcp = &cp[0];
-    enum { DATA = 0, ATIME, TID, IV, TAG, NUM_ATOMS };
-    char *atoms[NUM_ATOMS + 1], **ap;
-
-    if ((sz = strlen(cookie)) >= SCS_COOKIE_MAX)
-    {
-        scs_set_error(ctx, SCS_ERR_FRAMING, "SCS_COOKIE_MAX exceeded");
-        return -1;
-    }
-
-    memcpy(cp, cookie, sz + 1);
-
-    for (n = 0, ap = atoms; (*ap = strsep(&pcp, "|")) != NULL; n++)
-    {
-        if (**ap == '\0' && n < NUM_ATOMS)
-        {
-            /* empty field */
-            scs_set_error(ctx, SCS_ERR_FRAMING, "field %zu is empty", n);
-            return -1;
-        }
-
-        if (++ap > &atoms[NUM_ATOMS])
-        {
-            scs_set_error(ctx, SCS_ERR_FRAMING, "too much atoms");
-            return -1;
-        }
-    }
-
-    if (n != NUM_ATOMS)
-    {
-        scs_set_error(ctx, SCS_ERR_FRAMING, "got %zu atom(s), need 5", n);
-        return -1;
-    }
-
-    memcpy(tag, atoms[TAG],
-            MIN(BASE64_LENGTH(SCS_TAG_MAX) + 1, strlen(atoms[4])));
-
-    /* Attach atoms to context. */
-    return attach_atoms(ctx, atoms[DATA], atoms[ATIME], atoms[TID], 
-                        atoms[IV], atoms[TAG]);
-}
-
-static void *do_decode (scs_t *ctx, const char *tag, size_t *pstate_sz)
-{
-    scs_keyset_t *ks;
-    scs_atoms_t *ats = &ctx->atoms;
-    int skip_atoms_encoding = 1;
-
-    /* 1.  If (tid is available)
-     * 2.      data' = d($SCS_DATA)
-     *         atime' = d($SCS_ATIME)
-     *         tid' = d($SCS_TID)
-     *         iv' = d($SCS_IV)
-     *         tag' = d($SCS_AUTHTAG)
-     * 3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
-     * 4.     If (tag == tag' && NOW - atime' <= max_session_age)
-     * 5.         state = Uncomp(Dec(data'))
-     * 6.     Else discard PDU
-     * 7.  Else discard PDU        */
-    if ((ks = retr_keyset(ctx)) == NULL 
-            || decode_atoms(ctx, ks)
-            || create_tag(ctx, ks, skip_atoms_encoding)
-            || tags_match(ctx, tag)
-            || atime_ok(ctx)
-            || decrypt_state(ctx, ks)
-            || optional_uncompress(ctx, ks))
-    {
-        reset_atoms(ats);
-        return NULL;
-    }
-
-    *pstate_sz = ats->data_sz;
-
-    return ats->data;
+    /* Handle the PDU validation process. */
+    return verify(ctx, tag, pstate_sz); 
 }
 
 /**
@@ -315,16 +210,129 @@ void scs_term (scs_t *s)
 /** \brief  ... */
 const char *scs_err (scs_t *ctx) { return ctx->estr; }
 
-/* Let the crypto toolkit handle PR generation of the block cipher IV. */
-static int get_random_iv (scs_t *ctx)
-{
-    /* Crypto driver is in charge of error reporting through scs_set_error(). */
-    if (D.gen_iv(ctx) == 0)
-        return 0;
+/**
+ *  \}
+ */
 
-    return -1;
+
+/*
+ * Create the SCS cookie string given the computed atoms:
+ *      scs_cookie = "b64(data)'|'b64(atime)'|'b64(tid)'|'b64(iv)'|'b64(tag)"
+ */
+static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
+{
+    int rc;
+    scs_atoms_t *ats = &ctx->atoms;
+
+    rc = snprintf(cookie, SCS_COOKIE_MAX, "%s|%s|%s|%s|%s", ats->b64_data, 
+            ats->b64_atime, ats->b64_tid, ats->b64_iv, ats->b64_tag);
+
+    if (rc >= SCS_COOKIE_MAX)
+    {
+        scs_set_error(ctx, SCS_ERR_IMPL, "SCS_COOKIE_MAX limit hit");
+        return NULL;
+    }
+
+    return cookie;
 }
 
+/* Split SCS atoms.  Also save a copy of the base-64 encoded tag since 
+ * create_tag() will overwrite ats->b64_tag with the newly computed one, 
+ * and we still need it in tags_match() for comparison/validation. */
+static int split_cookie (scs_t *ctx, const char *cookie, 
+        char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1])
+{
+    size_t sz, n;
+    char cp[SCS_COOKIE_MAX] = { '\0' }, *pcp = &cp[0];
+    enum { DATA = 0, ATIME, TID, IV, TAG, NUM_ATOMS };
+    char *atoms[NUM_ATOMS + 1], **ap;
+
+    /* Make a copy that we can freely clobber with strsep(). */
+    if ((sz = strlen(cookie)) >= SCS_COOKIE_MAX)
+    {
+        scs_set_error(ctx, SCS_ERR_FRAMING, "SCS_COOKIE_MAX exceeded");
+        return -1;
+    }
+    memcpy(cp, cookie, sz + 1);
+
+    /* Put the expected 5 atoms on corresponding atoms[] slots, also doing
+     * trivial integrity check (i.e. correct number and non-empty atoms.) */
+    for (n = 0, ap = atoms; (*ap = strsep(&pcp, "|")) != NULL; n++)
+    {
+        if (**ap == '\0' && n < NUM_ATOMS)
+        {
+            /* empty field */
+            scs_set_error(ctx, SCS_ERR_FRAMING, "field %zu is empty", n);
+            return -1;
+        }
+
+        if (++ap > &atoms[NUM_ATOMS])
+        {
+            scs_set_error(ctx, SCS_ERR_FRAMING, "too much atoms");
+            return -1;
+        }
+    }
+
+    if (n != NUM_ATOMS)
+    {
+        scs_set_error(ctx, SCS_ERR_FRAMING, "got %zu atom(s), need 5", n);
+        return -1;
+    }
+
+    /* Make a copy of the supplied authtag that can be compared with the
+     * re-computed authtag. */
+    memcpy(tag, atoms[TAG],
+            MIN(BASE64_LENGTH(SCS_TAG_MAX) + 1, strlen(atoms[TAG]) + 1));
+
+    /* Attach atoms to context. */
+    return attach_atoms(ctx, atoms[DATA], atoms[ATIME], atoms[TID], 
+                        atoms[IV], atoms[TAG]);
+}
+
+/* Internal version of scs_decode(). */
+static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
+{
+    scs_keyset_t *ks;
+    scs_atoms_t *ats = &ctx->atoms;
+    int skip_atoms_encoding = 1;
+
+    /* 1.  If (tid is available)
+     * 2.      data' = d($SCS_DATA)
+     *         atime' = d($SCS_ATIME)
+     *         tid' = d($SCS_TID)
+     *         iv' = d($SCS_IV)
+     *         tag' = d($SCS_AUTHTAG)
+     * 3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
+     * 4.     If (tag == tag' && NOW - atime' <= max_session_age)
+     * 5.         state = Uncomp(Dec(data'))
+     * 6.     Else discard PDU
+     * 7.  Else discard PDU        */
+    if ((ks = retr_keyset(ctx)) == NULL 
+            || decode_atoms(ctx, ks)
+            || create_tag(ctx, ks, skip_atoms_encoding)
+            || tags_match(ctx, tag)
+            || atime_ok(ctx)
+            || decrypt_state(ctx, ks)
+            || optional_inflate(ctx, ks))
+    {
+        reset_atoms(ats);
+        return NULL;
+    }
+
+    *pstate_sz = ats->data_sz;
+
+    return ats->data;
+}
+
+
+/* Let the crypto toolkit handle PR generation of the block cipher IV.
+ * The crypto driver is in charge of error reporting through scs_set_error(). */
+static int get_random_iv (scs_t *ctx)
+{
+    return D.gen_iv(ctx);
+}
+
+/* Retrieve current time in seconds since UNIX epoch. */
 static int get_atime (scs_t *ctx)
 {
     time_t atime;
@@ -338,10 +346,6 @@ static int get_atime (scs_t *ctx)
         return -1;
     }
 
-#ifdef FIXED_PARAMS
-    strcpy(ats->atime, "123456789");
-#endif  /* FIXED_PARAMS */
-
     /* Get string representation of atime which will be used later on when 
      * creating the authentication tag. */
     if (snprintf(ats->atime, sizeof ats->atime, 
@@ -354,7 +358,7 @@ static int get_atime (scs_t *ctx)
     return 0;
 }
 
-static int optional_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
+static int optional_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
@@ -369,7 +373,7 @@ static int optional_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
         return 0;
     }
 
-    return do_compress(ctx, state, state_sz);
+    return do_deflate(ctx, state, state_sz);
 }
 
 static int encrypt_state (scs_t *ctx)
@@ -477,7 +481,7 @@ static void reset_atoms (scs_atoms_t *ats)
  * overhead, one byte of actual data).  For larger stream sizes, the overhead 
  * approaches the limiting value of 0.03%.  */
 //static int compress (const char *in, uint8_t *out, size_t *pout_sz)
-static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz)
+static int do_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
 #ifdef HAVE_LIBZ
     int ret;
@@ -739,7 +743,7 @@ static int tags_match (scs_t *ctx, const char *tag)
         return 0;
 
     scs_set_error(ctx, SCS_ERR_TAG_MISMATCH, 
-            "\'%s\' != \'%s\'", ats->b64_tag, tag);
+            "tag mismatch: \'%s\' != \'%s\'", ats->b64_tag, tag);
 
     return -1;
 }
@@ -773,11 +777,7 @@ static int atime_ok (scs_t *ctx)
 static int decrypt_state (scs_t *ctx, scs_keyset_t *ks)
 {
     /* Decrypt and remove padding, if any. */
-    if (D.dec(ctx, ks)
-            || remove_pad(ctx))
-        return -1;
-
-    return 0;
+    return (D.dec(ctx, ks) || remove_pad(ctx));
 }
 
 static int remove_pad (scs_t *ctx)
@@ -801,15 +801,15 @@ static int remove_pad (scs_t *ctx)
     return 0;
 }
 
-static int optional_uncompress (scs_t *ctx, scs_keyset_t *ks)
+static int optional_inflate (scs_t *ctx, scs_keyset_t *ks)
 {
     if (!ks->comp)
-        return 0;
+        return 0;   /* no-op ! */
 
-    return do_uncompress(ctx);
+    return do_inflate(ctx);
 }
 
-static int do_uncompress (scs_t *ctx)
+static int do_inflate (scs_t *ctx)
 {
 #ifdef HAVE_LIBZ
     int ret;
@@ -826,7 +826,8 @@ static int do_uncompress (scs_t *ctx)
     zstr.next_in = (Bytef *) ats->data;
     zstr.avail_in = ats->data_sz;
 
-    /* XXX should we use a temp buffer to avoid overwrite ? */
+    /* TODO 
+     * check if we have to use a temp buffer to avoid possible overwrite. */
     zstr.next_out = ats->data;
     zstr.avail_out = sizeof ats->data;
 
@@ -845,17 +846,4 @@ err:
 #else   /* !HAVE_LIBZ */
     assert(!"I'm not supposed to get there without zlib...");
 #endif  /* HAVE_LIBZ */
-}
-
-static void debug_print_cookies (scs_t *ctx)
-{
-    scs_atoms_t *ats = &ctx->atoms;
-
-    printf("SCS ATIME = %s\n", ats->b64_atime);
-    printf("SCS AUTHTAG = %s\n", ats->b64_tag);
-    printf("SCS DATA = %s\n", ats->b64_data);
-    printf("SCS TID = %s\n", ats->b64_tid);
-    printf("SCS IV = %s\n", ats->b64_iv);
-
-    return;
 }
