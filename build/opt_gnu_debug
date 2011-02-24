@@ -7,7 +7,7 @@ makl_args_def "gnu_debug" \
                   "enable debugging with GCC/GBD"
 
 # Hook function.
-function __makl_gnu_debug ()
+__makl_gnu_debug()
 {
     makl_add_var_mk "CFLAGS" "-ggdb"
 }

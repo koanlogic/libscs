@@ -1,6 +1,5 @@
 
 code:
-- experiment with "compact" version of SCS cookie (all atoms in one cookie)
 - minimal crypto implementation: aes + hmac + sha1 + rand
 - lua bindings
 [stewy] python bindings
@@ -10,7 +9,6 @@ code:
 - length constraint over produced cookies
 - keyset refresh api
 - optional auto generation for keying material
-
 
 - on darwin with compression enabled I get:
 ==96275== Conditional jump or move depends on uninitialised value(s)

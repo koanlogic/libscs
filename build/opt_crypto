@@ -7,7 +7,7 @@ makl_args_def "crypto" \
                   "select crypto toolkit to use"
 
 # Hook function.
-function __makl_crypto ()
+__makl_crypto()
 {
     [ $# -eq 1 ] || \
         makl_err 1 "Supply one of 'cyassl' or 'openssl' to --crypto="
