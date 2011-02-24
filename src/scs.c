@@ -1,5 +1,6 @@
 /* (c) KoanLogic Srl - 2011 */ 
 
+#include <sys/param.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h> 
@@ -61,11 +62,13 @@ static int do_compress (scs_t *ctx, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *ctx);
 static int add_pad (scs_t *ctx);
 static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding);
+static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX]);
 
 /* Decode support. */
-static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid);
-int attach_atoms (scs_t *ctx, const char *b64_data, const char *b64_atime, 
-        const char *b64_iv, const char *b64_tag);
+static scs_keyset_t *retr_keyset (scs_t *ctx);
+static int attach_atoms (scs_t *ctx, const char *b64_data, 
+        const char *b64_atime, const char *b64_tid, const char *b64_iv, 
+        const char *b64_tag);
 static int decode_atoms (scs_t *ctx, scs_keyset_t *ks);
 static int tags_match (scs_t *ctx, const char *tag);
 static int atime_ok (scs_t *ctx);
@@ -73,14 +76,17 @@ static int optional_uncompress (scs_t *ctx, scs_keyset_t *ks);
 static int decrypt_state (scs_t *ctx, scs_keyset_t *ks);
 static int remove_pad (scs_t *ctx);
 static int do_uncompress (scs_t *ctx);
+static int split_cookie (scs_t *ctx, const char *cookie, 
+        char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1]);
+static void *do_decode (scs_t *ctx, const char *tag, size_t *pstate_sz);
 
 static void debug_print_cookies (scs_t *ctx);
 
 /**
- *  \brief  Prepare SCS PDU atoms to save the supplied \p state blob 
- *          to remote UA.
+ *  \brief  Given the supplied \p state blob return the SCS cookie.
  */ 
-int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz)
+const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
+        char cookie[SCS_COOKIE_MAX])
 {
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
@@ -88,10 +94,19 @@ int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz)
 
     reset_atoms(ats);
 
-    /* 1.  iv = RAND()
-     * 2.  atime = NOW
-     * 3.  data = Enc(Comp(state))
-     * 4.  tag = HMAC(e(data)||e(atime)||e(tid)||e(iv)) */
+    /* New encode algorithm:
+     *  iv = rand()
+     *  atime = now()
+     *  Trans = (compression enabled) ? Deflate : Id
+     *  state' = Trans(state)
+     *  data = E_k(state')
+     *  tag = HMAC_h(b64(data)  || len(b64(data))  ||
+     *               b64(atime) || len(b64(atime)) ||
+     *               b64(tid)   || len(b64(tid))   ||
+     *               b64(iv)    || len(b64(iv)))
+     *  scs_cookie = 
+     *      "b64(data) '|' b64(atime) '|' b64(tid) '|' b64(iv) '|' b64(tag)"
+     */
     if (get_random_iv(ctx) 
             || get_atime(ctx) 
             || optional_compress(ctx, state, state_sz) 
@@ -99,23 +114,112 @@ int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz)
             || create_tag(ctx, ks, !skip_atoms_encoding))
     {
         reset_atoms(ats);   /* Remove any garbage. */
+        return NULL;
+    }
+
+    return do_cookie(ctx, cookie);
+}
+
+/** \brief  Decode the supplied SCS cookie.  If verification is successful, 
+  *         the embedded state blob is returned. */
+void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
+{
+    char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1];
+
+    reset_atoms(&ctx->atoms);
+
+    if (split_cookie(ctx, cookie, tag))
+        return NULL;
+
+    return do_decode(ctx, tag, pstate_sz); 
+}
+
+static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
+{
+    char *p;
+    size_t i, sz, tot = SCS_COOKIE_MAX;
+    scs_atoms_t *ats = &ctx->atoms;
+    enum { NUM_ATOMS = 5 };
+    const char *atoms[NUM_ATOMS] = {
+        ats->b64_data,
+        ats->b64_atime,
+        ats->b64_tid,
+        ats->b64_iv,
+        ats->b64_tag
+    };
+
+    for (i = 0, p = cookie; i < NUM_ATOMS; ++i, tot -= sz, p += sz)
+    {
+        if (i != 0)
+            *p++ = '|';
+
+        if ((sz = strlen(atoms[i])) > tot - 2)  /* take care of '|' and '\0' */
+        {
+            scs_set_error(ctx, SCS_ERR_IMPL, "SCS_COOKIE_MAX limit hit");
+            return NULL;
+        }
+
+        memcpy(p, atoms[i], sz);
+    }
+
+    *p = '\0';
+
+    return cookie;
+}
+
+/* Split SCS atoms.  Also save the base-64 encoded tag into 'tag' since 
+ * create_tag() will overwrite the ats->b64_tag field. */
+static int split_cookie (scs_t *ctx, const char *cookie, 
+        char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1])
+{
+    size_t sz, n;
+    char cp[SCS_COOKIE_MAX] = { '\0' }, *pcp = &cp[0];
+    enum { DATA = 0, ATIME, TID, IV, TAG, NUM_ATOMS };
+    char *atoms[NUM_ATOMS + 1], **ap;
+
+    if ((sz = strlen(cookie)) >= SCS_COOKIE_MAX)
+    {
+        scs_set_error(ctx, SCS_ERR_FRAMING, "SCS_COOKIE_MAX exceeded");
         return -1;
     }
 
-    debug_print_cookies(ctx);
+    memcpy(cp, cookie, sz + 1);
 
-    return 0;
+    for (n = 0, ap = atoms; (*ap = strsep(&pcp, "|")) != NULL; n++)
+    {
+        if (**ap == '\0' && n < NUM_ATOMS)
+        {
+            /* empty field */
+            scs_set_error(ctx, SCS_ERR_FRAMING, "field %zu is empty", n);
+            return -1;
+        }
+
+        if (++ap > &atoms[NUM_ATOMS])
+        {
+            scs_set_error(ctx, SCS_ERR_FRAMING, "too much atoms");
+            return -1;
+        }
+    }
+
+    if (n != NUM_ATOMS)
+    {
+        scs_set_error(ctx, SCS_ERR_FRAMING, "got %zu atom(s), need 5", n);
+        return -1;
+    }
+
+    memcpy(tag, atoms[TAG],
+            MIN(BASE64_LENGTH(SCS_TAG_MAX) + 1, strlen(atoms[4])));
+
+    /* Attach atoms to context. */
+    return attach_atoms(ctx, atoms[DATA], atoms[ATIME], atoms[TID], 
+                        atoms[IV], atoms[TAG]);
 }
 
-/** \brief  ... */
-int scs_decode (scs_t *ctx, const char *data, const char *atime,
-        const char *iv, const char *tag, const char *tid)
+static void *do_decode (scs_t *ctx, const char *tag, size_t *pstate_sz)
 {
     scs_keyset_t *ks;
     scs_atoms_t *ats = &ctx->atoms;
     int skip_atoms_encoding = 1;
-
-    reset_atoms(ats);
 
     /* 1.  If (tid is available)
      * 2.      data' = d($SCS_DATA)
@@ -128,8 +232,7 @@ int scs_decode (scs_t *ctx, const char *data, const char *atime,
      * 5.         state = Uncomp(Dec(data'))
      * 6.     Else discard PDU
      * 7.  Else discard PDU        */
-    if ((ks = retr_keyset(ctx, tid)) == NULL 
-            || attach_atoms(ctx, data, atime, iv, tag)
+    if ((ks = retr_keyset(ctx)) == NULL 
             || decode_atoms(ctx, ks)
             || create_tag(ctx, ks, skip_atoms_encoding)
             || tags_match(ctx, tag)
@@ -138,10 +241,12 @@ int scs_decode (scs_t *ctx, const char *data, const char *atime,
             || optional_uncompress(ctx, ks))
     {
         reset_atoms(ats);
-        return -1;
+        return NULL;
     }
 
-    return 0;
+    *pstate_sz = ats->data_sz;
+
+    return ats->data;
 }
 
 /**
@@ -208,50 +313,8 @@ void scs_term (scs_t *s)
 }
 
 /** \brief  ... */
-const char *scs_cookie_data (scs_t *ctx)
-{
-    return ctx->atoms.b64_data;
-}
+const char *scs_err (scs_t *ctx) { return ctx->estr; }
 
-/** \brief  ... */
-const char *scs_cookie_atime (scs_t *ctx)
-{
-    return ctx->atoms.b64_atime;
-}
-
-/** \brief  ... */
-const char *scs_cookie_iv (scs_t *ctx)
-{
-    return ctx->atoms.b64_iv;
-}
-
-/** \brief  ... */
-const char *scs_cookie_authtag (scs_t *ctx)
-{
-    return ctx->atoms.b64_tag;
-}
-
-/** \brief  ... */
-const char *scs_cookie_tid (scs_t *ctx)
-{
-    return ctx->atoms.b64_tid;
-}
-
-/** \brief ... */
-const uint8_t *scs_state (scs_t *ctx, size_t *pstate_sz)
-{
-    if (pstate_sz)
-        *pstate_sz = ctx->atoms.data_sz;
-
-    return ctx->atoms.data;
-}
-
-/** \brief ... */
-size_t scs_state_sz (scs_t *ctx)
-{
-    return ctx->atoms.data_sz;
-}
- 
 /* Let the crypto toolkit handle PR generation of the block cipher IV. */
 static int get_random_iv (scs_t *ctx)
 {
@@ -332,28 +395,28 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
         size_t raw_sz, enc_sz;
     } A[NUM_ATOMS] = {
         { 
-            "SCS_DATA",
+            "SCS DATA",
             ats->data,
             ats->b64_data,
             ats->data_sz,
             BASE64_LENGTH(ats->data_sz)
         },
         { 
-            "SCS_ATIME",
+            "SCS ATIME",
             (uint8_t *) ats->atime,
             ats->b64_atime,
             strlen(ats->atime),
             sizeof(ats->b64_atime)
         },
         {
-            "SCS_TID",
+            "SCS TID",
             (uint8_t *) ks->tid,
             ats->b64_tid,
             strlen(ks->tid),
             sizeof(ats->b64_tid)
         },
         {
-            "SCS_IV",
+            "SCS IV",
             ats->iv,
             ats->b64_iv,
             ks->block_sz,
@@ -520,14 +583,15 @@ err:
     return rc;
 }
 
-static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid)
+static scs_keyset_t *retr_keyset (scs_t *ctx)
 {
     char raw_tid[SCS_TID_MAX];
     scs_atoms_t *ats = &ctx->atoms;
     size_t raw_tid_len = sizeof raw_tid - 1;
 
     /* Make sure we have room for the terminating NUL char. */
-    if (base64_decode(tid, strlen(tid), (uint8_t *) raw_tid, &raw_tid_len))
+    if (base64_decode(ats->b64_tid, strlen(ats->b64_tid), 
+                (uint8_t *) raw_tid, &raw_tid_len))
     {
         scs_set_error(ctx, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
         return NULL;
@@ -535,55 +599,59 @@ static scs_keyset_t *retr_keyset (scs_t *ctx, const char *tid)
 
     raw_tid[raw_tid_len] = '\0';
 
-    /* Attach b64 encoded value to the atoms set. */
-    (void) strncpy(ats->b64_tid, tid, sizeof(ats->b64_tid) - 1);
-    ats->b64_tid[sizeof(ats->b64_tid) - 1] = '\0';
-
     if (ctx->cur_keyset.active && !strcmp(raw_tid, ctx->cur_keyset.tid))
         return &ctx->cur_keyset;
 
     if (ctx->prev_keyset.active && !strcmp(raw_tid, ctx->prev_keyset.tid))
         return &ctx->prev_keyset;
 
-    scs_set_error(ctx, SCS_ERR_WRONG_TID, "tid %s not found", raw_tid);
+    scs_set_error(ctx, SCS_ERR_WRONG_TID, "tid \'%s\' not found", raw_tid);
     return NULL;
 }
 
 /* Possible truncation will be detected in some later processing stage. */
-int attach_atoms (scs_t *ctx, const char *b64_data, const char *b64_atime, 
-        const char *b64_iv, const char *b64_tag)
+static int attach_atoms (scs_t *ctx, const char *b64_data, 
+        const char *b64_atime, const char *b64_tid, const char *b64_iv, 
+        const char *b64_tag)
 {
     size_t i;
     scs_atoms_t *ats = &ctx->atoms;
-    enum { NUM_ATOMS = 4 };
+    enum { NUM_ATOMS = 5 };
     struct {
         const char *cookie, *b64;
         char *cp;
         size_t max_sz, b64_sz; 
     } A[NUM_ATOMS] = {
         { 
-            "SCS_DATA",
+            "SCS DATA",
             b64_data,
             ats->b64_data,
             sizeof(ats->b64_data),
             strlen(b64_data) + 1
         },
         {
-            "SCS_ATIME",
+            "SCS ATIME",
             b64_atime,
             ats->b64_atime,
             sizeof(ats->b64_atime),
             strlen(b64_atime) + 1
         },
         {
-            "SCS_IV",
+            "SCS TID",
+            b64_tid,
+            ats->b64_tid,
+            sizeof(ats->b64_tid),
+            strlen(b64_tid) + 1
+        },
+        {
+            "SCS IV",
             b64_iv,
             ats->b64_iv,
             sizeof(ats->b64_iv),
             strlen(b64_iv) + 1
         },
         {
-            "SCS_AUTHTAG",
+            "SCS AUTHTAG",
             b64_tag,
             ats->b64_tag,
             sizeof(ats->b64_tag),
@@ -622,28 +690,28 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
         size_t enc_sz;
     } A[NUM_ATOMS] = {
         {
-            "SCS_DATA",
+            "SCS DATA",
             ats->data,
             &ats->data_sz,      /* Initially set to data_capacity. */
             ats->b64_data,
             strlen(ats->b64_data)
         },
         {
-            "SCS_ATIME",
+            "SCS ATIME",
             (uint8_t *) ats->atime,
             &atime_sz,
             ats->b64_atime,
             strlen(ats->b64_atime)
         },
         {
-            "SCS_IV",
+            "SCS IV",
             ats->iv,
             &iv_sz,
             ats->b64_iv,
             strlen(ats->b64_iv)
         },
         {
-            "SCS_AUTHTAG",
+            "SCS AUTHTAG",
             ats->tag,
             &ats->tag_sz,
             ats->b64_tag,
@@ -783,11 +851,11 @@ static void debug_print_cookies (scs_t *ctx)
 {
     scs_atoms_t *ats = &ctx->atoms;
 
-    printf("SCS_ATIME = %s\n", ats->b64_atime);
-    printf("SCS_AUTHTAG = %s\n", ats->b64_tag);
-    printf("SCS_DATA = %s\n", ats->b64_data);
-    printf("SCS_TID = %s\n", ats->b64_tid);
-    printf("SCS_IV = %s\n", ats->b64_iv);
+    printf("SCS ATIME = %s\n", ats->b64_atime);
+    printf("SCS AUTHTAG = %s\n", ats->b64_tag);
+    printf("SCS DATA = %s\n", ats->b64_data);
+    printf("SCS TID = %s\n", ats->b64_tid);
+    printf("SCS IV = %s\n", ats->b64_iv);
 
     return;
 }

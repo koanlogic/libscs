@@ -35,6 +35,10 @@
   #define SCS_DATA_MAX  8192    /* Maximum uncompressed state size. */
 #endif  /* !SCS_DATA_MAX */
 
+#ifndef SCS_COOKIE_MAX
+  #define SCS_COOKIE_MAX    4096
+#endif  /* !SCS_COOKIE_MAX */
+
 /** 
  * Error codes. 
  */
@@ -52,7 +56,8 @@ typedef enum
     SCS_ERR_WRONG_TID,          /* TID not found. */
     SCS_ERR_TAG_MISMATCH,       /* Supplied and computed tags don't match. */
     SCS_ERR_SESSION_EXPIRED,    /* "session_max_age" overrun. */
-    SCS_ERR_BAD_PAD             /* Bad padding found while decrypting state. */
+    SCS_ERR_BAD_PAD,            /* Bad padding found while decrypting state. */
+    SCS_ERR_FRAMING             /* Framing error of the SCS cookie. */
 } scs_err_t;
 
 /**
@@ -79,25 +84,17 @@ typedef struct scs_s scs_t;
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
         const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps);
 
-/** Create SCS atoms to transport \p state data. */
-int scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz);
+/** Create SCS cookie to transport \p state data. */
+const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
+        char cookie[SCS_COOKIE_MAX]);
 
-/** Decode SCS atoms to retrieve previously saved state data. */
-int scs_decode (scs_t *ctx, const char *data, const char *atime, 
-        const char *iv, const char *tag, const char *tid);
+/** Decode SCS cookie to retrieve previously saved state data. */
+void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz);
 
 /** Dispose the supplied SCS context. */
 void scs_term (scs_t *ctx);
 
-/** Getter methods for base-64 (i.e. cookie ready) atoms. */
-const char *scs_cookie_data (scs_t *ctx);
-const char *scs_cookie_atime (scs_t *ctx);
-const char *scs_cookie_iv (scs_t *ctx);
-const char *scs_cookie_authtag (scs_t *ctx);
-const char *scs_cookie_tid (scs_t *ctx);
+/* Return last error string. */
+const char *scs_err (scs_t *ctx);
 
-/** Getter method for raw, clear-text state data and size. */
-const uint8_t *scs_state (scs_t *ctx, size_t *pstate_sz);
-size_t scs_state_sz (scs_t *ctx);
- 
 #endif  /* !_SCS_H_ */
