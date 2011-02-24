@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
+#include "missing.h"
 #include "scs_conf.h"
 #include "scs.h"
 #include "utils.h"

@@ -3,14 +3,20 @@ include ../Makefile.conf
 
 LIB = scs
 
-SRCS = scs.c
+SRCS =  scs.c
 SRCS += utils.c
 SRCS += base64.c
+
 ifdef USE_CYASSL
-SRCS += cyassl_drv.c 
+  SRCS += cyassl_drv.c 
 endif   # USE_CYASSL
+
 ifdef USE_OPENSSL
-SRCS += openssl_drv.c 
+  SRCS += openssl_drv.c 
 endif   # USE_OPENSSL
+
+ifndef HAVE_STRLCPY
+  SRCS += strlcpy.c
+endif
 
 include lib.mk

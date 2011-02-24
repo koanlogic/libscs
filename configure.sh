@@ -27,6 +27,9 @@ makl_add_var_mk "SRCDIR" "`pwd`"
 makl_add_var_mk "CFLAGS" "-I\$(SRCDIR)/include"
 makl_add_var_mk "CFLAGS" "-W -Wall -Wextra"
 
+# We like strlcpy so much :)
+makl_checkfunc 0 "strlcpy" 3 "" "<string.h>"
+
 # Third party library dependencies (i.e. libz + a suitable crypto library).
 makl_optional 1 "lib" "z" "" "-lz"
 makl_add_var_mk "CFLAGS" "\$(LIBZ_CFLAGS)"
