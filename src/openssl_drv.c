@@ -115,19 +115,27 @@ int openssl_tag (scs_t *ctx)
 
 #if OPENSSL_VERSION_NUMBER < 0x10000000L
     HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL);
+
     HMAC_Update(&c, (unsigned char *) ats->b64_data, strlen(ats->b64_data));
+    HMAC_Update(&c, (unsigned char *) "|", 1);
     HMAC_Update(&c, (unsigned char *) ats->b64_atime, strlen(ats->b64_atime));
+    HMAC_Update(&c, (unsigned char *) "|", 1);
     HMAC_Update(&c, (unsigned char *) ats->b64_tid, strlen(ats->b64_tid));
+    HMAC_Update(&c, (unsigned char *) "|", 1);
     HMAC_Update(&c, (unsigned char *) ats->b64_iv, strlen(ats->b64_iv));
+
     HMAC_Final(&c, ats->tag, (unsigned int *) &ats->tag_sz);
 #else
     if (!HMAC_Init_ex(&c, ks->hkey, ks->hkey_sz, EVP_sha1(), NULL)
             || !HMAC_Update(&c, (unsigned char *) ats->b64_data, 
                             strlen(ats->b64_data))
+            || !HMAC_Update(&c, (unsigned char *) "|", 1);
             || !HMAC_Update(&c, (unsigned char *) ats->b64_atime, 
                             strlen(ats->b64_atime))
+            || !HMAC_Update(&c, (unsigned char *) "|", 1);
             || !HMAC_Update(&c, (unsigned char *) ats->b64_tid, 
                             strlen(ats->b64_tid))
+            || !HMAC_Update(&c, (unsigned char *) "|", 1);
             || !HMAC_Update(&c, (unsigned char *) ats->b64_iv, 
                             strlen(ats->b64_iv))
             || !HMAC_Final(&c, ats->tag, (unsigned int *) &ats->tag_sz))

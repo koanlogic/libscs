@@ -9,6 +9,7 @@ code:
 - length constraint over produced cookies
 - keyset refresh api
 - optional auto generation for keying material
+- factor out compression code
 
 - on darwin with compression enabled I get:
 ==96275== Conditional jump or move depends on uninitialised value(s)

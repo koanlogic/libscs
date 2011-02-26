@@ -20,7 +20,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-00"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-01"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -99,65 +99,52 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
-    <!-- 
-      <t>This document provides an overview of SCS, a cryptographic protocol
-      aimed at the protection of client-side HTTP sessions, i.e. sessions in
-      which the application state is held entirely on the client in the form
-      of HTTP cookies.</t>
-     -->
+      <t>This document provides an overview of SCS, a tiny cryptographic 
+      protocol layered on top of the HTTP cookie facility, that let its 
+      users produce and consume authenticated and encrypted cookies, as
+      opposed to usual cookies, that are un-authenticated and sent in 
+      clear-text.</t>
 
-      <t>This document provides an overview of SCS, a cryptographic protocol
-      layered on top of the HTTP cookie facility, that allows an origin server
-      to handle session state without storing it locally.</t>
+      <t>An interesting property, rising naturally from the given 
+      confidentiality and authentication properties, is that it is possible to 
+      avoid storing the session state material on server side altogether.  
+      In fact, an SCS cookie presented by the user agent to the origin server 
+      can always be validated (i.e. possibly reckognized as self-produced, 
+      untampered material) and, as such, be used to safely restore back 
+      the application state.</t>
 
-      <t>Its typical use cases include devices with little or no storage
-      offering some functionality via an HTTP interface, and web applications
-      with High Availability or load balancing requirements which may want to
-      handle application state without the need to synchronize the pool through
-      shared storage or peering.</t>
+      <t>So, typical use cases may include devices with little or no storage
+      offering some functionality via an HTTP interface, as well as web 
+      applications with high availability or load balancing requirements which 
+      would prefer to handle application state without the need to synchronize 
+      the pool through shared storage or peering.</t>
 
-      <t>Nevertheless, its security properties allow it to be used whenever
-      privacy and integrity of cookies is a concern, at the cost of increased
-      server CPU and bandwidth usage, and of some "credential-ownership"
-      implications which will be thoroughly analysed.</t>
+      <t>Nevertheless, its security properties allow SCS to be used whenever
+      the privacy and integrity of cookies is a concern, by paying an 
+      affordable price in terms of the additional CPU clock cycles needed by
+      the symmetric key encryption and HMAC algorithms, and related key
+      management, which can be made a nearly transparent task.</t>
     </abstract>
   </front>
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
-    <!--
-      <t>SCS is a cryptographic protocol aimed at protecting client-side HTTP
-      sessions, i.e. sessions in which the application state (for example,
-      whether or not authentication credentials have been provided) is held
-      entirely by the client in the form of <xref
-      target="I-D.ietf-httpstate-cookie">cookies</xref></t>
-     -->
+      <t>SCS is a tiny cryptographic protocol layered on top of the HTTP 
+      cookie facility <xref target="I-D.ietf-httpstate-cookie" />, that let its
+      users produce and consume authenticated and encrypted cookies, as
+      opposed to usual cookies, that are un-authenticated and sent in
+      clear-text.</t>
 
-      <t>SCS is a cryptographic protocol layered on top of the HTTP cookie 
-      facility <xref target="I-D.ietf-httpstate-cookie" />, that allows an 
-      origin server to handle clients' session state without storing it 
-      locally.</t>
-
-      <t>An SCS enabled server delegates the application state storage to the
-      client (e.g. a browser) - which basically acts as a remote storage
-      device. A set of cryptographic transformations is used to ensure that
-      information authenticity and confidentiality attributes of state data
-      have the same characteristics as for typical "server-side" sessions.</t>
-
-      <t>Anyway, a peculiar difference between SCS and "server-side" cookie
-      sessions arises when we carefully consider the roles of the playing
-      entities. In the "server-side" model, the Server acts a triple role as
-      the "generator", the "owner", and the "verifier" of cookie credentials.
-      Instead, a server implementing SCS acts the "generator" and "verifier"
-      roles only -- the "owner" being inapplicable as long as we have imposed
-      the no-storage requirement.</t>
-
-      <t>In all respects, the Server grants the custody of the generated
-      cookie to the Client, whose trust model needs to be taken into
-      consideration when designing applications using SCS. The consequences of
-      such discrepancy (e.g. deliberate deletion of a cookie, explicit
-      privilege revocation, etc.) will be explored and analyzed in <xref
-      target="sec_impact_of_scs_cookie_model"></xref>.</t>
+      <t>Having a non-tamperable proof of authorship attached, each SCS 
+      cookie can always be validated by the originator, making it possible for
+      a server to handle clients' session state without the need to store 
+      it locally.  In fact, an SCS enabled server could completely delegate the 
+      application state storage to the client (e.g. a web browser) and use it, 
+      in all respects, as a remote storage device.  
+      The result of the cryptographic transformations applied to state data can
+      be used to ensure that its information authenticity and confidentiality 
+      attributes are the same as if they were stored privately on 
+      server-side.</t>
 
       <t>The no-storage requirement, which is the key design constraint of
       SCS, makes it an ideal candidate in the following settings: <list
@@ -166,17 +153,35 @@
           which provide functionality such as software updates, configuration,
           device monitoring, etc. via an HTTP interface;</t>
 
-          <t>web applications with HA or load balancing requirements, which
-          may delegate handling of the application state to clients instead of
-          using shared storage or forced peering, to enhance overall
-          parallelism.</t>
+          <t>web applications with high availability or load balancing 
+          requirements, which may delegate handling of the application state 
+          to clients instead of using shared storage or forced peering, to 
+          enhance overall parallelism.</t>
         </list></t>
+     
+      <t>It is worth noting that a peculiar difference between SCS, when used 
+      in strict no-storage mode, and usual "server-side" cookie sessions arises
+      as soon as we carefully consider the roles of the playing entities. 
+      In the "server-side" model, the server acts a triple role as the 
+      "generator", the "owner", and the "verifier" of cookie credentials.
+      Instead, a server implementing SCS in no-storage mode, acts the 
+      "generator" and "verifier" roles only -- the "owner" being inapplicable 
+      for obvious reasons.</t>
 
-      <t>An SCS server can be implemented within a web application by means of a
-      user library that exposes the core SCS functionality and leaves explicit
-      control over SCS cookies to the programmer, or transparently, by hiding 
-      the "diskless session" facility behind a generic session API 
-      abstraction.</t>
+      <t>In all respects, the Server grants the custody of the generated
+      cookie to the Client, whose trust model needs to be taken into
+      consideration when designing applications that use SCS this way.  
+      The consequences of such discrepancy (e.g. deliberate deletion of a 
+      cookie, explicit privilege revocation, etc.) will be analyzed in 
+      <xref target="sec_impact_of_scs_cookie_model"></xref>.</t>
+
+
+      <t>An SCS server can be implemented within a web application by means of
+      a user library that exposes the core SCS functionality and leaves explicit
+      control over SCS cookies to the programmer, or transparently, by hiding, 
+      for example, a "diskless session" facility behind a generic session API 
+      abstraction.  SCS implementers are free to choose freely the model that
+      best suites their needs.</t>
     </section>
 
     <section title="Requirements Language">
@@ -188,64 +193,83 @@
 
     <section anchor="sec_scs_protocol" title="SCS Protocol">
       <t>The SCS protocol defines: <list style="symbols">
-          <t>a PDU, as a well-defined aggregate of cookies (<xref
+          <t>the SCS cookie structure and encoding (<xref
           target="sec_pdu_description"></xref>);</t>
 
-          <t>the cryptographic transformations which manipulate the PDU field
-          (<xref target="sec_crypto_transform"></xref>);</t>
+          <t>the cryptographic transformations involved in SCS creation and
+          verification (<xref target="sec_crypto_transform"></xref>);</t>
 
-          <t>the HTTP-based PDU exchange model (<xref
+          <t>the HTTP-based PDU exchange (<xref
           target="sec_pdu_exchange"></xref>).</t>
+
+          <t>the underlying key management model (<xref
+          target="sec_key_management"></xref>).</t>
         </list></t>
 
       <t>Note that the PDU is transmitted to the client as an opaque data
-      block, hence no interpretation nor validation is necessary.</t>
-
-      <t>The single requirement for client-side support of SCS is cookie
-      activation on the browser. Only the server is involved in the PDU
-      manipulation process.</t>
+      block, hence no interpretation nor validation is necessary.
+      The single requirement for client-side support of SCS is cookie
+      activation on the browser. The sole origin server is involved in the PDU
+      manipulation process, which greatly simplifies the crypto operations -- 
+      especially the key management, which is usually a pesky task.</t>
 
       <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
-      load-balanced or HA environment) and C to be the client with a
-      cookie-enabled browser, or User Agent with equivalent capabilities.</t>
+      load-balanced or high-availability environment) and C to be the client 
+      with a cookie-enabled browser, or user agent with equivalent 
+      capabilities.</t>
 
-      <section anchor="sec_pdu_description" title="PDU Description">
-        <t>S and C exchange the same PDU (<xref
-        target="sec_pdu_exchange"></xref>), which consists of a set of
-        interdependent cookies tied together by cryptographic
-        transformations.</t>
+      <section anchor="sec_pdu_description" title="SCS Cookie Description">
+        <t>S and C exchange a cookie <xref target="sec_pdu_exchange" />,
+        whose cookie-value consists of a set of adjacent non-empty values, each
+        of which is the Base-64 encoding of one SCS field, separated by its 
+        left and/or right sibling by means of the %x7c ASCII character 
+        (i.e. '|'), like this:
+        <figure>
+            <artwork align="left"><![CDATA[
+scs-cookie-name  = token
+scs-cookie-value = data "|" atime "|" tid "|" iv "|" authtag
+data             = 1*base64-character
+atime            = 1*base64-character
+tid              = 1*base64-character
+iv               = 1*base64-character
+authtag          = 1*base64-character
+            ]]></artwork>
+        </figure>
+        </t>
 
         <t>Confidentiality is limited to the application state information
-        (i.e. SCS_DATA cookie), while integrity and authentication apply to
-        the entire PDU.</t>
+        (i.e. the data field), while integrity and authentication apply to
+        the entire cookie-value.</t>
 
         <t>The following subsections describe the syntax and semantics of
-        of each SCS cookie.</t>
+        of each SCS cookie field.</t>
 
-        <section anchor="sec_scs_atime" title="SCS_ATIME">
+        <section anchor="sec_scs_atime" title="ATIME">
           <t>Timestamp relating to the last read or write operation performed
-          on session data, encoded a numeric string holding the number of 
-          seconds since UNIX epoch.</t>
+          on session data, encoded a HEX string holding the number of seconds 
+          since UNIX epoch.</t>
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.</t>
 
-          <t>If the received SCS_ATIME value is older than a predefined
+          <t>If the received ATIME value is older than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
         </section>
 
-        <!-- end of SCS_ATIME -->
+        <!-- end of ATIME -->
 
-        <section anchor="sec_scs_data" title="SCS_DATA">
+        <section anchor="sec_scs_data" title="DATA">
           <t>Block of encrypted and optionally compressed data, containing 
           session state.  Note that no restriction is imposed on plain text 
           structure: the protocol is completely agnostic as to state data 
           layout.</t>
 
-          <t>If the total size of the SCS_DATA cookie, including name, value
+<!-- TODO data split across many SCS cookies TODO
+
+          <t>If the total size of the SCS cookie, including name, value
           and attributes, exceeds 4096 bytes (see Section 6.1. of <xref
           target="I-D.ietf-httpstate-cookie"></xref>), it is sliced into n
           SCS_DATA{n} cookies, each 4KB in size, so that the concatenation of
@@ -262,45 +286,49 @@
           state data to some sensible value. Also, an SCS implementation MAY
           decide to limit the accepted state data to any value greater than
           or equal to 4KB.</t>
+-->
         </section>
 
-        <!-- end of SCS_DATA -->
+        <!-- end of DATA -->
 
-        <section anchor="sec_scs_tid" title="SCS_TID">
-          <t>ASCII string that uniquely identifies the transform set (keys 
-          and algorithms) used to generate this PDU.</t>
+        <section anchor="sec_scs_tid" title="TID">
+          <t>This identifier, equivalent to a SPI in a Data Security SA <xref
+          target="RFC3740"></xref>), is an ASCII string that uniquely 
+          identifies the transform set (keys and algorithms) used to generate 
+          this SCS cookie.</t>
 
           <t>SCS assumes that a key-agreement/distribution mechanism exists
           for environments in which S consists of multiple servers (it may
           consist of a simple key-refresh in the case |S|=1), which provides a
           unique external identifier for each transform set defined and shared
           amongst pool members.</t>
-
-          <t>This identifier (equivalent to a SPI in a Data Security SA <xref
-          target="RFC3740"></xref>) is represented in the cookie value.</t>
         </section>
 
-        <!-- end of SCS_TID -->
+        <!-- end of TID -->
 
-        <section anchor="sec_scs_iv" title="SCS_IV">
+        <section anchor="sec_scs_iv" title="IV">
           <t>Initialization Vector used for the encryption algorithm (<xref
           target="sec_crypto_transform"></xref>).</t>
 
           <t>In order to avoid providing correlation information to a possible
-          attacker with access to a sample of SCS PDUs, the IV MUST be created
-          randomly for each PDU.</t>
+          attacker with access to a sample of SCS cookies created using the
+          same TID, the IV MUST be created randomly for each SCS cookie.</t>
         </section>
 
-        <!-- end of SCS_IV -->
+        <!-- end of IV -->
 
-        <section anchor="sec_scs_authtag" title="SCS_AUTHTAG">
-          <t>Authentication tag based on the concatenation of SCS_ATIME,
-          SCS_DATA, SCS_TID and SCS_IV.</t>
-
-          <t>The concatenation operation is done by packing the four strings
-          containing the base64 encoded values in order (e.g.:
-          "ZGF0YQ==YXRpbWU=dGlkaXY="), and supplying the resulting string to
-          HMAC.</t>
+        <section anchor="sec_scs_authtag" title="AUTHTAG">
+          <t>Authentication tag based on the concatenation of DATA, ATIME,
+          TID and IV fields encoded in Base-64, framed by the "|" separator:
+          <figure>
+            <artwork align="left"><![CDATA[
+authtag = HMAC(base64(DATA)  || "|" || 
+               base64(ATIME) || "|" ||
+               base64(TID)   || "|" || 
+               base64(IV))
+            ]]></artwork>
+         </figure>
+         </t>
         </section>
 
         <!-- end of SCS_AUTHTAG -->
@@ -508,7 +536,7 @@
         </figure>
 
         <t>Note that although SCS cookies always have the same naming, there
-        can be multiple active SCS sessions in use at a given user-agent as
+        can be multiple active SCS sessions in use at a given user agent as
         long as the tuple &lt;SCS PDU, Domain, Path&gt; is different.</t>
 
         <t>SCS cookies MUST NOT be folded into a single HTTP header field, see
@@ -543,7 +571,7 @@
             application usage.</t>
 
             <t>A trailing '.' MUST NOT be present in order to minimize the
-            possibility of a user-agent ignoring the attribute value.</t>
+            possibility of a user agent ignoring the attribute value.</t>
           </section>
 
           <section anchor="sec_secure" title="Secure">

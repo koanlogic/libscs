@@ -79,10 +79,15 @@ int cyassl_tag (scs_t *ctx)
     }
 
     HmacSetKey(&hmac, SHA, ks->hkey, ks->hkey_sz);
+
     HmacUpdate(&hmac, (byte *) ats->b64_data, strlen(ats->b64_data));
+    HmacUpdate(&hmac, (byte *) "|", 1);
     HmacUpdate(&hmac, (byte *) ats->b64_atime, strlen(ats->b64_atime));
+    HmacUpdate(&hmac, (byte *) "|", 1);
     HmacUpdate(&hmac, (byte *) ats->b64_tid, strlen(ats->b64_tid));
+    HmacUpdate(&hmac, (byte *) "|", 1);
     HmacUpdate(&hmac, (byte *) ats->b64_iv, strlen(ats->b64_iv));
+
     HmacFinal(&hmac, ats->tag);
 
     ats->tag_sz = SHA_DIGEST_SIZE;
