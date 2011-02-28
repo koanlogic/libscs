@@ -28,7 +28,7 @@ int main (void)
 
     printf("encoded state (len=%zu): %s\n", strlen(cookie), cookie);
 
-    if (scs_refresh_keyset(scs, "new_tid", SCS_KEY_AUTO, SCS_KEY_AUTO))
+    if (scs_refresh_keyset(scs, SCS_TID_AUTO, SCS_KEY_AUTO, SCS_KEY_AUTO))
         errx(EXIT_FAILURE, "scs_key_refresh failed: %s", scs_err(scs));
 
     if ((orig = scs_decode(scs, cookie, &orig_sz)) == NULL)

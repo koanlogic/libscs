@@ -39,6 +39,10 @@
   #define SCS_COOKIE_MAX    4096
 #endif  /* !SCS_COOKIE_MAX */
 
+#ifndef SCS_TID_AUTO_MAX
+  #define SCS_TID_AUTO_LEN  10  /* Length of auto generated TID. */
+#endif  /* !SCS_TID_AUTO_MAX */
+
 /** 
  * Error codes. 
  */
@@ -76,8 +80,9 @@ typedef enum
 } scs_cipherset_t;
 
 
-/** ... */
+/** Automatic refresh. */
 #define SCS_KEY_AUTO    NULL
+#define SCS_TID_AUTO    NULL
 
 /**
  * SCS runtime context.

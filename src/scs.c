@@ -58,11 +58,12 @@ static struct
 #endif
 };
 
-static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
+static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
 static int new_key (uint8_t *dst, const uint8_t *src, size_t sz);
-static int set_tid (scs_keyset_t *ks, const char *tid);
+static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid);
 static void reset_atoms (scs_atoms_t *atoms);
+static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len);
 
 /* Encode support. */
 static int get_random_iv (scs_t *ctx);
@@ -177,7 +178,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         return SCS_ERR_MEM;
 
     /* Initialize current keyset. */
-    if ((rc = init_keyset(&s->cur_keyset, tid, comp, cipherset, key, hkey)))
+    if ((rc = init_keyset(s, &s->cur_keyset, tid, comp, cipherset, key, hkey)))
     {
         free(s);
         return rc;
@@ -235,7 +236,7 @@ int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key,
         goto recover;
 
     /* Set new tid name. */
-    return set_tid(cur, new_tid);
+    return set_tid(ctx, cur, new_tid);
 
 recover:
     scs_set_error(ctx, SCS_ERR_REFRESH, "Could not create new keys");
@@ -581,16 +582,18 @@ static int add_pad (scs_t *ctx)
     return 0;
 }
 
-static int set_tid (scs_keyset_t *ks, const char *tid)
+static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid)
 {
-    /* TODO automatic tid generation. */
+    if (tid == SCS_TID_AUTO)
+        return gen_tid(ctx, ks->tid, SCS_TID_AUTO_LEN);
+
     return (strlcpy(ks->tid, tid, sizeof ks->tid) >= sizeof ks->tid) ? -1 : 0;
 }
 
-static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
+static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey)
 {
-    if (set_tid(ks, tid))
+    if (set_tid(ctx, ks, tid))
         return SCS_ERR_BAD_TID;
 
     /* Set the compression flag as requested.  In case zlib is not available 
@@ -887,4 +890,23 @@ err:
 #else   /* !HAVE_LIBZ */
     assert(!"I'm not supposed to get there without zlib...");
 #endif  /* HAVE_LIBZ */
+}
+
+static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len)
+{
+    char *dst = tid;
+    uint8_t rand_block[SCS_TID_MAX], *src = &rand_block[0];
+    size_t len = MIN(tid_len, SCS_TID_MAX);
+
+    /* Fill rand_block with garbage. */
+    if (D.rand(ctx, src, len))
+        return -1;
+
+    /* Convert random bytes to printable ASCII chars. */
+    while (--len)
+        *dst++ = (char) ((*src++ % 93) + 33);
+
+    *dst = '\0';
+
+    return 0;
 }
