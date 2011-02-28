@@ -58,7 +58,8 @@ typedef enum
     SCS_ERR_SESSION_EXPIRED,    /* "session_max_age" overrun. */
     SCS_ERR_BAD_PAD,            /* Bad padding found while decrypting state. */
     SCS_ERR_FRAMING,            /* Framing error of the SCS cookie. */
-    SCS_ERR_BAD_TID             /* Supplied TID string is too long. */
+    SCS_ERR_BAD_TID,            /* Supplied TID string is too long. */
+    SCS_ERR_REFRESH             /* Error refreshing keys. */
 } scs_err_t;
 
 /**
@@ -73,6 +74,10 @@ typedef enum
      */
     AES_128_CBC_HMAC_SHA1    
 } scs_cipherset_t;
+
+
+/** ... */
+#define SCS_KEY_AUTO    NULL
 
 /**
  * SCS runtime context.
@@ -97,5 +102,9 @@ void scs_term (scs_t *ctx);
 
 /* Return last error string. */
 const char *scs_err (scs_t *ctx);
+
+/** Refresh key material and shift active keyset. */
+int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
+        const uint8_t *hkey);
 
 #endif  /* !_SCS_H_ */

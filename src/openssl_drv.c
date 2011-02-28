@@ -21,23 +21,19 @@ int openssl_init (void)
     EVP_add_cipher(EVP_aes_128_cbc());
     EVP_add_digest(EVP_sha1());
 
-    return 0;
-}
-
-int openssl_gen_iv (scs_t *ctx)
-{
-    scs_keyset_t *ks = &ctx->cur_keyset;
-    scs_atoms_t *ats = &ctx->atoms;
-
     if (rng_init() == -1)
         return -1;
 
-    if (!RAND_bytes(ats->iv, ks->block_sz))
-        return -1;
+    return 0;
+}
 
-#ifdef FIXED_PARAMS
-    memset(ats->iv, 0, ks->block_sz);
-#endif  /* FIXED_PARAMS */
+int openssl_rand (scs_t *ctx, uint8_t *b, size_t b_sz)
+{
+    if (!RAND_bytes(b, b_sz))
+    {
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "%s", "TODO get openssl error");
+        return -1;
+    }
 
     return 0;
 }
@@ -99,11 +95,10 @@ int openssl_dec (scs_t *ctx, scs_keyset_t *ks)
     return 0;
 }
 
-int openssl_tag (scs_t *ctx)
+int openssl_tag (scs_t *ctx, scs_keyset_t *ks)
 {
     HMAC_CTX c;
     scs_atoms_t *ats = &ctx->atoms;
-    scs_keyset_t *ks = &ctx->cur_keyset;
 
     if (ks->cipherset != AES_128_CBC_HMAC_SHA1)
     {

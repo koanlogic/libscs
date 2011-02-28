@@ -5,10 +5,10 @@
 #include "scs_priv.h"
 
 int cyassl_init (void);
-int cyassl_gen_iv (scs_t *scs);
+int cyassl_rand (scs_t *ctx, uint8_t *b, size_t b_sz);
 int cyassl_enc (scs_t *scs);
 int cyassl_dec (scs_t *scs, scs_keyset_t *ks);
-int cyassl_tag (scs_t *scs);
+int cyassl_tag (scs_t *ctx, scs_keyset_t *ks);
 void cyassl_term (void);
 
 #endif  /* _CYASSL_DRV_H_ */

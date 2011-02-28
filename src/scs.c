@@ -26,25 +26,31 @@
   #include "openssl_drv.h"
 #endif  /* USE_CYASSL || USE_OPENSSL */
 
+#ifdef HAVE_LIBZ
+  int have_libz = 1;
+#else
+  int have_libz = 0;
+#endif  /* HAVE_LIBZ */
+
 static struct
 {
     int (*init) (void);
-    int (*gen_iv) (scs_t *ctx);
+    int (*rand) (scs_t *ctx, uint8_t *b, size_t b_sz);
     int (*enc) (scs_t *ctx);
     int (*dec) (scs_t *ctx, scs_keyset_t *ks);
-    int (*tag) (scs_t *ctx);
+    int (*tag) (scs_t *ctx, scs_keyset_t *ks);
     void (*term) (void);
 } D = {
 #ifdef USE_CYASSL
     cyassl_init,
-    cyassl_gen_iv,
+    cyassl_rand,
     cyassl_enc,
     cyassl_dec,
     cyassl_tag,
     cyassl_term
 #elif defined (USE_OPENSSL)
     openssl_init,
-    openssl_gen_iv,
+    openssl_rand,
     openssl_enc,
     openssl_dec,
     openssl_tag,
@@ -54,6 +60,8 @@ static struct
 
 static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
+static int new_key (uint8_t *dst, const uint8_t *src, size_t sz);
+static int set_tid (scs_keyset_t *ks, const char *tid);
 static void reset_atoms (scs_atoms_t *atoms);
 
 /* Encode support. */
@@ -214,6 +222,29 @@ const char *scs_err (scs_t *ctx)
     return ctx->estr;
 }
 
+int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
+        const uint8_t *hkey)
+{
+    scs_keyset_t *cur = &ctx->cur_keyset, *prev = &ctx->prev_keyset, tmp;
+
+    tmp = *prev;
+    *prev = *cur;
+
+    if (new_key(cur->key, key, cur->key_sz)
+            || new_key(cur->hkey, hkey, cur->hkey_sz))
+        goto recover;
+
+    /* Set new tid name. */
+    return set_tid(cur, new_tid);
+
+recover:
+    scs_set_error(ctx, SCS_ERR_REFRESH, "Could not create new keys");
+    *cur = *prev;
+    *prev = tmp;
+
+    return -1;
+}
+
 /**
  *  \}
  */
@@ -331,7 +362,10 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
  * The crypto driver is in charge of error reporting through scs_set_error(). */
 static int get_random_iv (scs_t *ctx)
 {
-    return D.gen_iv(ctx);
+    scs_atoms_t *ats = &ctx->atoms;
+    scs_keyset_t *ks = &ctx->cur_keyset;
+
+    return D.rand(ctx, ats->iv, ks->block_sz);
 }
 
 /* Retrieve current time in seconds since UNIX epoch. */
@@ -439,7 +473,7 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     }
 
     /* Create auth tag. */
-    if (D.tag(ctx))
+    if (D.tag(ctx, ks))
         return -1;
 
     /* Base-64 encode the auth tag. */
@@ -547,21 +581,21 @@ static int add_pad (scs_t *ctx)
     return 0;
 }
 
+static int set_tid (scs_keyset_t *ks, const char *tid)
+{
+    /* TODO automatic tid generation. */
+    return (strlcpy(ks->tid, tid, sizeof ks->tid) >= sizeof ks->tid) ? -1 : 0;
+}
+
 static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey)
 {
-    scs_err_t rc;
-
-    if (strlcpy(ks->tid, tid, sizeof ks->tid) >= sizeof ks->tid)
+    if (set_tid(ks, tid))
         return SCS_ERR_BAD_TID;
 
     /* Set the compression flag as requested.  In case zlib is not available 
      * on the platform, ignore user request and set to false. */
-#ifdef HAVE_LIBZ
-    ks->comp = comp;
-#else
-    ks->comp = 0;
-#endif  /* HAVE_LIBZ */
+    ks->comp = have_libz ? comp : 0;
 
     /* Setup keyset and cipherset. */
     switch ((ks->cipherset = cipherset))
@@ -571,17 +605,25 @@ static int init_keyset (scs_keyset_t *ks, const char *tid, int comp,
             ks->hkey_sz = 20;
             break;
         default:
-            rc = SCS_ERR_WRONG_CIPHERSET;
-            goto err;
+            return SCS_ERR_WRONG_CIPHERSET;
     }
 
-    /* Internalize keying material. */
-    memcpy(ks->key, key, ks->key_sz);
-    memcpy(ks->hkey, hkey, ks->hkey_sz);
+    /* Create or attach new HMAC and cipher keys. */
+    if (new_key(ks->key, key, ks->key_sz)
+            || new_key(ks->hkey, hkey, ks->hkey_sz))
+        return SCS_ERR_CRYPTO;
 
     return SCS_OK;
-err:
-    return rc;
+}
+
+static int new_key (uint8_t *dst, const uint8_t *src, size_t sz)
+{
+    if (src == SCS_KEY_AUTO)
+        return D.rand(NULL, dst, sz);
+
+    memcpy(dst, src, sz);
+
+    return 0;
 }
 
 static scs_keyset_t *retr_keyset (scs_t *ctx)
@@ -730,6 +772,9 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
             return -1;
         }
     }
+
+    /* Terminate atime string. */
+    ats->atime[atime_sz] = '\0';
 
     return 0;
 }

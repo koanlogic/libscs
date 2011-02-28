@@ -8,26 +8,17 @@
 #include "cyassl_drv.h"
 #include "utils.h"
 
+static RNG rng;
+
 int cyassl_init (void)
 {
-    return 0;
+    return InitRng(&rng) ? -1 : 0;
 }
 
-int cyassl_gen_iv (scs_t *ctx)
+int cyassl_rand (scs_t *ctx, uint8_t *b, size_t b_sz)
 {
-    RNG rng;
-    scs_keyset_t *ks = &ctx->cur_keyset;
-    scs_atoms_t *ats = &ctx->atoms;
-
-    if (InitRng(&rng))
-        return -1;
-
-    RNG_GenerateBlock(&rng, ats->iv, ks->block_sz);
-
-#ifdef FIXED_PARAMS
-    memset(ats->iv, 0, ks->block_sz);
-#endif  /* FIXED_PARAMS */
-
+    (void) ctx; /* silence -Wunused-parameter */
+    RNG_GenerateBlock(&rng, b, b_sz);
     return 0;
 }
 
@@ -66,11 +57,10 @@ int cyassl_dec (scs_t *ctx, scs_keyset_t *ks)
     return 0;
 }
 
-int cyassl_tag (scs_t *ctx)
+int cyassl_tag (scs_t *ctx, scs_keyset_t *ks)
 {
     Hmac hmac;
     scs_atoms_t *ats = &ctx->atoms;
-    scs_keyset_t *ks = &ctx->cur_keyset;
 
     if (ks->cipherset != AES_128_CBC_HMAC_SHA1)
     {
