@@ -290,7 +290,7 @@ void decode (run_t *t, scs_t *ctx)
             cookie_sz = strlen(cookie);
             break;
         default:
-            errx(EXIT_FAILURE, "cookie-value is not a valid input to encode");
+            errx(EXIT_FAILURE, "cannot decode a non cookie-value");
     }
 
     if ((s = scs_decode(ctx, cookie, &s_sz)) == NULL)
