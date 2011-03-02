@@ -21,13 +21,14 @@ input:
 +       * auto              (default which applies to each unspecified keys/tid)
 
     refresh options:
++       * new tid               [-T string]
 +       * new key (string)      [-K string]
 +       * new hkey (string)     [-H string]
 +       * (or) auto             applies to the unspecified key
 
     misc:
 +       * use compression       [-z]
-+       * time to live          [-T seconds]
++       * time to live          [-l seconds]
 
 output:
 
