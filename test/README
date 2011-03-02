@@ -1,0 +1,49 @@
+test driver
+
+input:
+
+    overall operation(s) (default encode to cookie-value):
+        -E  : encode only
+        -D  : decode only
+        -A  : encode and decode
+        -R  : encode, refresh and decode
+
+    input type (one only mandatory):
+        * state string (NUL-terminated)         [-s string]
+        * state file (whole contents, binary)   [-f filename]
+        * cookie-value                          [-c string]
+
+    keyset material:
+        * tid               [-t string]
+        * key (string)      [-k string]
+        * hkey (string)     [-h string]
+        * (or) auto         applies to the unspecified key
+
+    refresh options:
+        * new key (string)      [-K string]
+        * new hkey (string)     [-H string]
+        * (or) auto             applies to the unspecified key
+
+    misc:
+        * use compression       [-z]
+        * time to live          [-T seconds]
+
+output:
+
+    * cookie string (stdout)            [-C]
+    * decoded state (to file)           [-F filename]
+    * decoded state (to stdout)         default
+    * validation result (true | false)  [-V]
+
+
+example:
+
+    * create cookie-value from input state string, using default algorithm 
+      with manual keying (default is to put cookie-value on the standard output)
+
+        $ test -E \
+               -s "a state string" \
+               -k "cipher key" \
+               -h "hmac key"
+
+    

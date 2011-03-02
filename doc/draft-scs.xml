@@ -229,11 +229,11 @@
             <artwork align="left"><![CDATA[
 scs-cookie-name  = token
 scs-cookie-value = data "|" atime "|" tid "|" iv "|" authtag
-data             = 1*base64-character
-atime            = 1*base64-character
-tid              = 1*base64-character
-iv               = 1*base64-character
-authtag          = 1*base64-character
+data             = 4*base64-character
+atime            = 4*base64-character
+tid              = 4*base64-character
+iv               = 4*base64-character
+authtag          = 4*base64-character
             ]]></artwork>
         </figure>
         </t>

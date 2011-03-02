@@ -116,10 +116,8 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
      *  Trans = (compression enabled) ? Deflate : Id
      *  state' = Trans(state)
      *  data = E_k(state')
-     *  tag = HMAC_h(b64(data)  || len(b64(data))  ||
-     *               b64(atime) || len(b64(atime)) ||
-     *               b64(tid)   || len(b64(tid))   ||
-     *               b64(iv)    || len(b64(iv)))
+     *  tag = HMAC_h(b64(data) || "|" || b64(atime) || "|" ||
+     *               b64(tid)  || "|" || b64(iv))
      *  scs_cookie = 
      *      "b64(data) '|' b64(atime) '|' b64(tid) '|' b64(iv) '|' b64(tag)" */
     if (get_random_iv(ctx) 

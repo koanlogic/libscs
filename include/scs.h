@@ -84,6 +84,9 @@ typedef enum
 #define SCS_KEY_AUTO    NULL
 #define SCS_TID_AUTO    NULL
 
+/* Compression. */
+enum { SCS_DO_NOT_COMPRESS = 0, SCS_DO_COMPRESS };
+
 /**
  * SCS runtime context.
  */
