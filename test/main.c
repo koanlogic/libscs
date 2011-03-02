@@ -40,16 +40,14 @@ typedef struct
      * Output type.
      */ 
     enum {
-        OUT_TYPE_COOKIE_VALUE,          /* Default output. */
-        OUT_TYPE_DECODED_STATE_STRING,
-        OUT_TYPE_DECODED_STATE_FILE,
-        OUT_TYPE_VALIDATION_RESULT
+        OUT_TYPE_STRING,                /* Default output. */
+        OUT_TYPE_FILE                   /* -o <filename> */
     } out_type;
 
     /*
-     * Test output ("big enough" string.)
+     * Output file name in case of OUT_TYPE_DECODED_STATE_FILE.
      */ 
-    char out_s[8192];
+    char out_fn[FILENAME_MAX];
 
     /* 
      * Supplied key material (Initial and refreshed keyset, if non-auto.) 
@@ -66,19 +64,21 @@ typedef struct
     /* Compression. */
     int comp;                           /* -z (default disabled.) */
 
-
 } run_t;
 
 void init_params (run_t *ptest);
 void parse_opts (int ac, char **av, run_t *ptest);
 void usage (void);
 
+void test_output (run_t *t, const char *s);
+void read_from_file (const char *fn, uint8_t **pb, size_t *pb_sz);
+void write_to_file (const char *fn, uint8_t *b, size_t b_sz);
+
 void encode (run_t *t, scs_t *ctx);
 void decode (run_t *t, scs_t *ctx);
 void encode_and_decode (run_t *t, scs_t *ctx);
 void encode_refresh_and_decode (run_t *t, scs_t *ctx);
 
-void test_output (run_t *t, const char *s);
 
 typedef void (*test_fun_t) (run_t *, scs_t *);
 
@@ -120,7 +120,7 @@ void parse_opts (int ac, char **av, run_t *ptest)
 {
     int c;
 
-    while ((c = getopt(ac, av, "c:f:s:zADERT:")) != -1)
+    while ((c = getopt(ac, av, "c:f:h:k:o:t:s:zADEH:K:RT:")) != -1)
     {
         switch (c)
         {
@@ -154,6 +154,25 @@ void parse_opts (int ac, char **av, run_t *ptest)
                 ptest->in_type = IN_TYPE_COOKIE_VALUE;
                 strlcpy(ptest->in_cookie, optarg, sizeof ptest->in_cookie);
                 break;
+            case 'o':
+                ptest->out_type = OUT_TYPE_FILE;
+                strlcpy(ptest->out_fn, optarg, sizeof ptest->out_fn);
+                break;
+            case 't':
+                strlcpy(ptest->tid, optarg, sizeof ptest->tid);
+                break;
+            case 'k':
+                strlcpy(ptest->k, optarg, sizeof ptest->k);
+                break;
+            case 'h':
+                strlcpy(ptest->hk, optarg, sizeof ptest->hk);
+                break;
+            case 'H':
+                strlcpy(ptest->K, optarg, sizeof ptest->K);
+                break;
+            case 'K':
+                strlcpy(ptest->HK, optarg, sizeof ptest->HK);
+                break;
             default:
                 usage();
         }
@@ -167,7 +186,8 @@ void init_params (run_t *ptest)
     ptest->op = OP_ENCODE;
     ptest->in_type = IN_TYPE_STRING_AUTO;
     ptest->in_s[0] = ptest->in_fn[0] = ptest->in_cookie[0] = '\0';
-    ptest->out_type = OUT_TYPE_COOKIE_VALUE;
+    ptest->out_type = OUT_TYPE_STRING;
+    ptest->out_fn[0] = '\0';
     ptest->k[0] = ptest->hk[0] = ptest->K[0] = ptest->HK[0] = '\0';
     ptest->tid[0] = '\0';
     ptest->ttl = 3600;
@@ -185,7 +205,7 @@ void usage (void)
 
 void encode (run_t *t, scs_t *ctx)
 {
-    const uint8_t *s;
+    uint8_t *s;
     size_t s_sz;
     char cookie[SCS_COOKIE_MAX];
 
@@ -193,15 +213,16 @@ void encode (run_t *t, scs_t *ctx)
     switch (t->in_type)
     {
         case IN_TYPE_STRING_AUTO:
-            s = (const uint8_t *) "a test string";
+            s = (uint8_t *) "a test string";
             s_sz = strlen((const char *) s);
             break;
         case IN_TYPE_STRING:
-            s = (const uint8_t *) &t->in_s[0];
+            s = (uint8_t *) &t->in_s[0];
             s_sz = strlen((const char *) s);
             break;
         case IN_TYPE_FILE:
-            errx(EXIT_FAILURE, "TODO input from file");
+            read_from_file(t->in_fn, &s, &s_sz);
+            break;
         case IN_TYPE_COOKIE_VALUE:
             errx(EXIT_FAILURE, "cookie-value is not a valid input to encode");
     }
@@ -211,29 +232,112 @@ void encode (run_t *t, scs_t *ctx)
 
     test_output(t, cookie);
 
-    return;
-}
+    /* See if we have to chain operations. */
+    if (t->op == OP_ENCODE_AND_DECODE 
+            || t->op == OP_ENCODE_REFRESH_AND_DECODE)
+    {
+        (void) strlcpy(t->in_cookie, cookie, sizeof t->in_cookie);
+        t->in_type = IN_TYPE_COOKIE_VALUE;
+    }
 
-void test_output (run_t *t, const char *s)
-{
-    /* TODO */
-    fprintf(stdout, "%s\n", s);
+    return;
 }
 
 void decode (run_t *t, scs_t *ctx)
 {
-    /* TODO */
+    char *cookie, *s;
+    size_t cookie_sz, s_sz;
+
+    /* Get state from the supplied source. */
+    switch (t->in_type)
+    {
+        case IN_TYPE_FILE:
+            read_from_file(t->in_fn, (uint8_t **) &cookie, &cookie_sz);
+            break;
+        case IN_TYPE_COOKIE_VALUE:
+            cookie = &t->in_cookie[0];
+            cookie_sz = strlen(cookie);
+            break;
+        default:
+            errx(EXIT_FAILURE, "cookie-value is not a valid input to encode");
+    }
+
+    if ((s = scs_decode(ctx, cookie, &s_sz)) == NULL)
+        errx(EXIT_FAILURE, "%s", scs_err(ctx));
+
+    s[s_sz] = '\0'; /* Check if needed. */
+
+    test_output(t, s);
+
     return;
 }
 
 void encode_and_decode (run_t *t, scs_t *ctx)
 {
-    /* TODO */
-    return;
+    encode(t, ctx);
+    decode(t, ctx);
 }
 
 void encode_refresh_and_decode (run_t *t, scs_t *ctx)
 {
-    /* TODO */
+    encode(t, ctx);
+    /* TODO refresh */
+    decode(t, ctx);
+}
+
+void read_from_file (const char *fn, uint8_t **pb, size_t *pb_sz)
+{
+    long sz;
+    uint8_t *b;
+    FILE *fp;
+
+    if ((fp = fopen(fn, "rb")) == NULL)
+        err(EXIT_FAILURE, "%s", fn);
+
+    if (fseek(fp, 0L, SEEK_END) == -1)
+        err(EXIT_FAILURE, "seeking into %s", fn);
+
+    /* Get file length. */
+    sz = ftell(fp);
+    rewind(fp);
+
+    if ((b = malloc(sz)) == NULL)
+        err(EXIT_FAILURE, "getting memory");
+
+    if (fread(b, sz, 1, fp) != 1)
+        err(EXIT_FAILURE, "reading from %s", fn);
+
+    (void) fclose(fp);
+
+    *pb = b;
+    *pb_sz = sz;
+
     return;
 }
+
+void write_to_file (const char *fn, uint8_t *b, size_t b_sz)
+{
+    FILE *fp;
+
+    if ((fp = fopen(fn, "wb")) == NULL)
+        err(EXIT_FAILURE, "%s", fn);
+
+    if (fwrite(b, b_sz, 1, fp) != 1)
+        err(EXIT_FAILURE, "%s", fn);
+
+    return;
+}
+
+void test_output (run_t *t, const char *s)
+{
+    if (t->out_type == OUT_TYPE_STRING)
+    {
+        (void) fprintf(stdout, "%s\n", s);
+        return;
+    }
+
+    write_to_file(t->out_fn, (uint8_t *) s, strlen(s));
+
+    return;
+}
+
