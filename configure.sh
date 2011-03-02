@@ -68,5 +68,8 @@ then
     makl_add_var_mk "LDFLAGS" "\$(LIBCYASSL_LDFLAGS)"
 fi
 
+# Install headers in a private subdir
+makl_set_var "INCDIR" "`makl_get_var_mk \"INCDIR\"`/scs"
+
 # Send configuration to Makefile.conf and include/conf.h files.
 . "${MAKL_DIR}/cf/makl.term"
