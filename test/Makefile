@@ -3,7 +3,7 @@
 include common.mk
 include ../Makefile.conf
 
-PROG = test
+PROG = scs
 SRCS = main.c
 LDADD = $(SRCDIR)/src/libscs.a
 
