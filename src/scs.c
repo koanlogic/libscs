@@ -510,7 +510,6 @@ static void reset_atoms (scs_atoms_t *ats)
  * input stream, the overhead therefore amounts to 1100% (eleven bytes of 
  * overhead, one byte of actual data).  For larger stream sizes, the overhead 
  * approaches the limiting value of 0.03%.  */
-//static int compress (const char *in, uint8_t *out, size_t *pout_sz)
 static int do_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz)
 {
 #ifdef HAVE_LIBZ

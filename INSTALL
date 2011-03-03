@@ -1,28 +1,39 @@
-Basic build steps are:
+== Preconditions ==
 
-$ makl-conf         # extra ${CONF_ARGS} are optional
-$ makl
+LibSCS build is done with MaKL.  If you don't have MaKL on your platform, see
+http://koanlogic.com/makl for the latest release and install it.
+
+== Quick Installation ==
+
+Basic build steps for LibSCS are:
+
+  $ makl-conf         # extra ${CONF_ARGS} are optional
+  $ makl
 
 To install SCS on the local filesystem, as superuser run:
 
-# makl install
+  # makl install
+
+== Bindings ==
+
+To build and install bindings enter the appropriate directory (e.g.
+bindings/python) and run:
+
+  $ makl
+  # makl install
+
+== Details ==
 
 The default installation prefix is /usr/local. This value can be overridden by
 adding --prefix=${INSTALL_PREFIX} to ${CONF_ARGS}.
 
 To select which crypto library is used add --crypto=${CRIPTO_LIB} to
 ${CONF_ARGS}.  Currently supported values for ${CRYPTO_LIB} are "openssl" and
-"cyassl".
+"cyassl".  If none is given, assume OpenSSL.
 
 By default, dependencies will be sought for in /usr /usr/local. These values can
 be overridden via --libs=${LIBS_INSTALL_DIR} for all libraries or
 --lib-${LIB_NAME}=${LIB_INSTALL_DIR} for single libraries.
-
-To build and install bindings enter the appropriate directory (e.g.
-bindings/python) and run:
-
-$ makl
-# makl install
 
 For more detail on configuration options run:
 
