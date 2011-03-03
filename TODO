@@ -3,7 +3,6 @@ code:
 - minimal crypto implementation: aes + hmac + sha1 + rand
 [stewy] bindings for common web scripting languages
 - doxy framework
-- testing driver + test cases
 - length constraint over produced cookies
 - factor out compression code
 

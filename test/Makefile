@@ -1,5 +1,3 @@
-# $Id: prog.tmpl,v 1.3 2008/11/04 17:00:50 tho Exp $
-
 include common.mk
 include ../Makefile.conf
 
@@ -8,3 +6,5 @@ SRCS = main.c
 LDADD = $(SRCDIR)/src/libscs.a
 
 include prog.mk
+
+all-hook-post: ; @sh run-tests.sh
