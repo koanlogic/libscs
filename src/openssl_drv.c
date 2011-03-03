@@ -31,7 +31,8 @@ int openssl_rand (scs_t *ctx, uint8_t *b, size_t b_sz)
 {
     if (!RAND_bytes(b, b_sz))
     {
-        scs_set_error(ctx, SCS_ERR_CRYPTO, "%s", "TODO get openssl error");
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "openssl error: %s",
+                ERR_error_string(ERR_get_error(), NULL));
         return -1;
     }
 
@@ -58,7 +59,11 @@ int openssl_enc (scs_t *ctx)
                                   ats->data_sz) 
             || !EVP_EncryptFinal_ex(&c, ats->data + out_sz, &tmp_sz) 
             || !EVP_CIPHER_CTX_cleanup(&c))
+    {
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "openssl error: %s",
+                ERR_error_string(ERR_get_error(), NULL));
         return -1;
+    }
 
     out_sz += tmp_sz;
 
@@ -86,7 +91,11 @@ int openssl_dec (scs_t *ctx, scs_keyset_t *ks)
                                   ats->data_sz) 
             || !EVP_DecryptFinal_ex(&c, ats->data + out_sz, &tmp_sz) 
             || !EVP_CIPHER_CTX_cleanup(&c))
+    {
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "openssl error: %s",
+                ERR_error_string(ERR_get_error(), NULL));
         return -1;
+    }
 
     out_sz += tmp_sz;
 
@@ -135,10 +144,8 @@ int openssl_tag (scs_t *ctx, scs_keyset_t *ks)
                             strlen(ats->b64_iv))
             || !HMAC_Final(&c, ats->tag, (unsigned int *) &ats->tag_sz))
     {
-        char ebuf[128]; /* According to ERR_error_string man page it must be
-                           at least 120 bytes long. */
         scs_set_error(ctx, SCS_ERR_CRYPTO, "openssl error: %s", 
-                ERR_error_string(ERR_get_error(), ebuf));
+                ERR_error_string(ERR_get_error(), NULL));
         HMAC_CTX_cleanup(&c);
 
         return -1;
