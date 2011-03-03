@@ -27,8 +27,9 @@ makl_add_var_mk "SRCDIR" "`pwd`"
 makl_add_var_mk "CFLAGS" "-I\$(SRCDIR)/include"
 makl_add_var_mk "CFLAGS" "-W -Wall -Wextra"
 
-# We like strlcpy so much :)
+# Check functions for which we need to provide replacement
 makl_checkfunc 0 "strlcpy" 3 "" "<string.h>"
+makl_checkfunc 0 "arc4random" 0 "" "<stdlib.h>"
 
 # Third party library dependencies (i.e. libz + a suitable crypto library).
 makl_optional 1 "lib" "z" "" "-lz"
