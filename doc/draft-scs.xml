@@ -9,7 +9,6 @@
 <!ENTITY RFC5246 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5246.xml">
 <!ENTITY RFC3740 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3740.xml">
 <!ENTITY RFC4301 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4301.xml">
-<!ENTITY RFC4418 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4418.xml">
 <!ENTITY I-D.ietf-httpstate-cookie SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.draft-ietf-httpstate-cookie-22.xml">
 ]>
 <?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
@@ -175,13 +174,12 @@
       cookie, explicit privilege revocation, etc.) will be analyzed in 
       <xref target="sec_impact_of_scs_cookie_model"></xref>.</t>
 
-
       <t>An SCS server can be implemented within a web application by means of
       a user library that exposes the core SCS functionality and leaves explicit
       control over SCS cookies to the programmer, or transparently, by hiding, 
       for example, a "diskless session" facility behind a generic session API 
-      abstraction.  SCS implementers are free to choose freely the model that
-      best suites their needs.</t>
+      abstraction.  SCS implementers are free to choose the model that best 
+      suites their needs.</t>
     </section>
 
     <section title="Requirements Language">
@@ -209,9 +207,10 @@
       <t>Note that the PDU is transmitted to the client as an opaque data
       block, hence no interpretation nor validation is necessary.
       The single requirement for client-side support of SCS is cookie
-      activation on the browser. The sole origin server is involved in the PDU
-      manipulation process, which greatly simplifies the crypto operations -- 
-      especially the key management, which is usually a pesky task.</t>
+      activation on the user agent.  The sole origin server is involved in 
+      the PDU manipulation process, which greatly simplifies the crypto 
+      operations -- especially the key management, which is usually a pesky 
+      task.</t>
 
       <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
@@ -221,12 +220,13 @@
 
       <section anchor="sec_pdu_description" title="SCS Cookie Description">
         <t>S and C exchange a cookie <xref target="sec_pdu_exchange" />,
-        whose cookie-value consists of a set of adjacent non-empty values, each
-        of which is the Base-64 encoding of one SCS field, separated by its 
-        left and/or right sibling by means of the %x7c ASCII character 
-        (i.e. '|'), like this:
+        whose cookie-value consists of a sequence of adjacent non-empty values,
+        each of which is the Base-64 encoding of a specific SCS field, 
+        separated by its left and/or right sibling by means of the %x7c ASCII 
+        character (i.e. '|'), like this:
         <figure>
             <artwork align="left"><![CDATA[
+scs-cookie       = scs-cookie-name "=" scs-cookie-value
 scs-cookie-name  = token
 scs-cookie-value = data "|" atime "|" tid "|" iv "|" authtag
 data             = 4*base64-character
@@ -246,14 +246,14 @@ authtag          = 4*base64-character
         of each SCS cookie field.</t>
 
         <section anchor="sec_scs_atime" title="ATIME">
-          <t>Timestamp relating to the last read or write operation performed
-          on session data, encoded a HEX string holding the number of seconds 
-          since UNIX epoch.</t>
+        <!-- hex or decimal ? -->
+          <t>Absolute timestamp relating to the last read or write operation 
+          performed on session data, encoded as a HEX string holding the number
+          of seconds since UNIX epoch (i.e. 00:00:00, Jan 1 1970.)</t>
 
           <t>This value is updated with each client contact and is used to
-          identify expired sessions.</t>
-
-          <t>If the received ATIME value is older than a predefined
+          identify expired sessions.  If the delta between the received ATIME 
+          value and current time on S, is older than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
@@ -262,10 +262,13 @@ authtag          = 4*base64-character
         <!-- end of ATIME -->
 
         <section anchor="sec_scs_data" title="DATA">
-          <t>Block of encrypted and optionally compressed data, containing 
-          session state.  Note that no restriction is imposed on plain text 
-          structure: the protocol is completely agnostic as to state data 
-          layout.</t>
+          <t>Block of encrypted and optionally compressed data, possibly
+          containing the current session state.  Note that no restriction is 
+          imposed on clear text structure: the protocol is completely agnostic 
+          as to inner data layout.</t>
+          <t>Generally speaking, the plain text is the "normal" cookie that
+          would have been exchanged by S and C if SCS wasn't used.</t>
+
 
 <!-- TODO data split across many SCS cookies TODO
 
@@ -298,8 +301,8 @@ authtag          = 4*base64-character
           this SCS cookie.</t>
 
           <t>SCS assumes that a key-agreement/distribution mechanism exists
-          for environments in which S consists of multiple servers (it may
-          consist of a simple key-refresh in the case |S|=1), which provides a
+          for environments in which S consists of multiple servers (it actually
+          consists of a simple key-refresh in the case |S|=1), which provides a
           unique external identifier for each transform set defined and shared
           amongst pool members.</t>
         </section>
@@ -328,6 +331,9 @@ authtag = HMAC(base64(DATA)  || "|" ||
                base64(IV))
             ]]></artwork>
          </figure>
+         Note that, from a cryptographic point of view, the "|" char provides 
+         explicit authentication of the length of each supplied field, which
+         makes a robust countermeasure against splicing attacks.
          </t>
         </section>
 
@@ -345,12 +351,6 @@ authtag = HMAC(base64(DATA)  || "|" ||
         <t>The two algorithms MUST be associated with two independent
         keys.</t>
 
-        <t>The possibility of using UMAC for authentication <xref
-        target="RFC4418"></xref> has been taken into consideration, but
-        priority was given to space over performance: the nonce field transfer
-        would require an extra cookie, therefore reducing the space reserved
-        to state information by another 4KB.</t>
-
         <t>The following conventions will be used in the algorithm description
         (<xref target="sec_outbound_transform"></xref> and <xref
         target="sec_inbound_transform"></xref>): <list style="symbols">
@@ -365,6 +365,8 @@ authtag = HMAC(base64(DATA)  || "|" ||
 
             <t>e/d(): cookie value encoding/decoding functions (<xref
             target="sec_cookie_encoding"></xref>);</t>
+
+            <t>||: concatenation operator, i.e. "|" char;</t>
 
             <t>RAND(): random number generator <xref
             target="RFC4086"></xref>.</t>
@@ -396,10 +398,10 @@ authtag = HMAC(base64(DATA)  || "|" ||
           enabled, <xref target="RFC1951">DEFLATE</xref> format MUST be
           supported.</t>
 
-          <t>Compression should not be enabled when handling relatively short
-          and entropic state (e.g. pseudo random session identifiers).
-          Instead, large and quite regular state blobs could get a significant
-          boost when compressed.</t>
+          <t>As an advise to SCS users, compression should not be enabled when 
+          handling relatively short and entropic state such as pseudo random 
+          session identifiers.  Instead, large and quite regular state blobs 
+          could get a significant boost when compressed.</t>
         </section>
 
         <!-- end Compression -->
@@ -426,41 +428,41 @@ authtag = HMAC(base64(DATA)  || "|" ||
             <artwork align="center"><![CDATA[
 1.  iv = RAND()
 2.  atime = NOW
-3.  data = Enc(Comp(state))
+3.  data = Enc(Comp(plain-text-cookie-value))
 4.  tag = HMAC(e(data)||e(atime)||e(tid)||e(iv))
                 ]]></artwork>
           </figure>
 
-          <t>NOW is defined as the current timestamp of the server clock.</t>
+          <t>A new Initialization Vector is picked up randomly (step 1.).  
+          As already said (<xref target="sec_scs_iv" />) this step is necessary
+          to avoid providing correlation information to an attacker.</t>
+
+          <t>A new atime value is taken as the current timestamp of the 
+          server clock (step 2.).</t>
 
           <t>Since the only user of the atime field is the server, it is
-          unnecessary for it to be synchronized with the client. However, if
-          multiple servers are active in a load-balancing configuration,
-          clocks SHOULD be synchronized to avoid errors in the calculation of
-          session expiry.</t>
+          unnecessary for it to be synchronized with the client -- though
+          it needs to be a fairly stable clock.  However, if multiple servers 
+          are active in a load-balancing configuration, clocks SHOULD be 
+          synchronized to avoid errors in the calculation of session expiry.</t>
+
+          <t>The plain-text cookie value is then compressed (if needed) and
+          encoded by using the keyset identified by tid.</t>
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with padding bytes of equal
           value as the pad length -- equivalent to the scheme defined in
           Section 6.3 of <xref target="RFC5652"></xref>.</t>
 
-          <t>Hence the SCS PDU fields are created as follows:</t>
+          <t>Then the authentication tag, which encompasses each SCS field (and
+          lengths, and relative positions) is computed by HMAC'ing the 
+          "|"-separated concatenation of their base64 representations using 
+          the keyset identified by tid (step 4.).</t>
 
-          <?rfc subcompact="yes" ?>
-
-          <t><list style="empty">
-              <t>SCS_ATIME = e(atime)</t>
-
-              <t>SCS_AUTHTAG = e(tag)</t>
-
-              <t>SCS_DATA = e(data)</t>
-
-              <t>SCS_TID = e(tid)</t>
-
-              <t>SCS_IV = e(iv)</t>
-            </list></t>
-
-          <?rfc subcompact="no" ?>
+          <t>Hence the SCS cookie-value is created as follows:
+          <list style="empty">
+              <t>e(data)||e(atime)||e(tid)||e(iv)||e(tag)</t>
+          </list></t>
         </section>
 
         <!-- end Outbound Transform -->
@@ -471,32 +473,57 @@ authtag = HMAC(base64(DATA)  || "|" ||
 
           <figure anchor="fig_inbound_transform">
             <artwork align="center"><![CDATA[
-1.  If (tid is available)
-2.      data' = d($SCS_DATA)
-        atime' = d($SCS_ATIME)
-        tid' = d($SCS_TID)
-        iv' = d($SCS_IV)
-        tag' = d($SCS_AUTHTAG)
-3.      tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
-4.      If (tag == tag' && NOW - atime' <= session_max_age)
-5.          state = Uncomp(Dec(data'))
-6.      Else discard PDU
-7.  Else discard PDU
+0.  split_fields(scs-cookie-value)
+1.  tid' = d(tid)
+2.  If (tid' is available)
+3.      data' = d(data)
+        atime' = d(data)
+        iv' = d(iv)
+        tag' = d(authtag)
+4.      tag = HMAC(data'||atime'||tid'||iv')
+5.      If (tag == tag')
+6.          If (NOW - atime' <= session_max_age)
+7.              state = Uncomp(Dec(data'))
+8.          Else discard PDU
+9.      Else discard PDU
+10. Else discard PDU
                 ]]></artwork>
           </figure>
 
-          <t>If the cryptographic credentials (encryption and authentication
-          algorithms and keys identified by SCS_TID) are unavailable (step 7.),
-          the inbound PDU cannot be interpreted correctly.</t>
+          <t>First of all, the inbound scs-cookie-value is broken into its
+          component field (step 0.), and tid is decoded to allow keyset 
+          lookup (step 1.).</t>
 
-          <t>This may happen for several reasons: e.g., if a device without 
+          <t>If the cryptographic credentials (encryption and authentication
+          algorithms and keys identified by tid) are unavailable (step 10.),
+          the inbound SCS cookie is discarded as its value has no chance to
+          be interpreted correctly.  
+          This may happen for several reasons: e.g., if a device without 
           storage has been reset and loses the credentials stored in RAM, if 
           a server pool node desynchronizes, or in case of a key compromise 
-          that forces the invalidation of all available TIDs, etc.</t>
+          that forces the invalidation of all current tid's, etc.</t>
 
-          <t>Note that step 4. allows any altered packets or expired sessions
-          to be discarded, hence avoiding unnecessary state decryption and
-          decompression.</t>
+          <t>When a valid keyset is found (step 2.), the remaining SCS fields 
+          are decoded (step 3.) and supplied to the primitive that computes 
+          the authentication tag (step 4.).</t>
+
+          <t>If the tag computed using the local keyset matches the one carried
+          by the supplied SCS cookie, we can be confident about the fact the
+          cookie carries some authentic material; otherwise the SCS cookie
+          is discarded (step 9.).</t>
+
+          <t>Then the age of the SCS cookie (as deduced by atime field value
+          and current time provided by the server clock) is compared to the 
+          maximum time-to-live defined by the session_max_age parameter.</t>
+
+          <t>We have finally reached the point where the algorithm can 
+          extract the original, plain-text data from the encrypted and 
+          optionally compressed blob (step 7.).</t>
+
+          <t>Note that step 5. and 6. allows any altered packets or expired 
+          sessions to be discarded, hence avoiding unnecessary state decryption
+          and decompression.</t>
+
         </section>
 
         <!-- end Inbound Transform -->
@@ -519,34 +546,14 @@ authtag = HMAC(base64(DATA)  || "|" ||
         <figure anchor="fig_pdu_exchange">
           <artwork align="center"><![CDATA[
 1.  dump-state:
-           Set-Cookie: SCS_DATA=...;
-           Expires=...; Path=...;
-           Domain=...;
     S -->                           --> C
-           Set-Cookie: SCS_TID=...;
-           Expires=...; Path=...;
-           Domain=...;
-           ...
+        Set-Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
+           Expires=...; Path=...; Domain=...;
 
 2.  restore-state:
-           Cookie: SCS_DATA=...;
-    C -->  Cookie: SCS_TID=...;     --> S
-           ...
-            ]]></artwork>
+        Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
+          ]]></artwork>
         </figure>
-
-        <t>Note that although SCS cookies always have the same naming, there
-        can be multiple active SCS sessions in use at a given user agent as
-        long as the tuple &lt;SCS PDU, Domain, Path&gt; is different.</t>
-
-        <t>SCS cookies MUST NOT be folded into a single HTTP header field, see
-        Section 3 of <xref target="I-D.ietf-httpstate-cookie"></xref>.</t>
-
-        <section anchor="sec_cookie_attributes" title="Cookie Attributes">
-          <t>All SCS cookies belonging to the same PDU MUST carry the same
-          attributes' set. This is not elegant nor bandwidth-friendly
-          solution, but it is necessary in order to guarantee PDU
-          coherence.</t>
 
           <t>In the following sub paragraphs a series of recommendations is
           provided in order to maximize SCS PDU fitness in the generic cookie
@@ -578,7 +585,6 @@ authtag = HMAC(base64(DATA)  || "|" ||
             <t>This attribute MUST always be asserted when SCS sessions are
             carried over a TLS channel.</t>
           </section>
-        </section>
 
         <!-- end Cookie Attributes -->
       </section>
@@ -598,8 +604,6 @@ authtag = HMAC(base64(DATA)  || "|" ||
           <t>The key SHOULD be generated securely following the randomness
           recommendations in <xref target="RFC4086"></xref>;</t>
 
-          <t>the key length SHOULD be at least 128 bits;</t>
-
           <t>the key SHOULD only be used to generate and verify SCS PDUs;</t>
 
           <t>the key SHOULD be replaced regularly as well as any time the
@@ -607,10 +611,9 @@ authtag = HMAC(base64(DATA)  || "|" ||
         </list></t>
 
       <t>Furthermore, to preserve the validity of active HTTP sessions upon
-      renewal of cryptographic credentials (whenever the value of SCS_TID
-      changes), an SCS server MUST be capable of managing at least two
-      transforms contemporarily: the currently instantiated one, and its
-      predecessor.</t>
+      renewal of cryptographic credentials (whenever the value of tid changes),
+      an SCS server MUST be capable of managing at least two transforms 
+      contemporarily: the currently instantiated one, and its predecessor.</t>
 
       <t>Each transform set SHOULD be associated with an attribute pair:
       "refresh" and "expiry", which is used to identify the exposure limits
@@ -623,7 +626,7 @@ authtag = HMAC(base64(DATA)  || "|" ||
       sessions will be created using T', while the active T-protected ones go
       through a translation phase in which: <list style="symbols">
           <t>the inbound transformation authenticates and
-          decrypts/decompresses using T (identified by SCS_TID);</t>
+          decrypts/decompresses using T (identified by tid);</t>
 
           <t>the outbound transformation encrypts/compresses and authenticates
           using T'.</t>
@@ -703,7 +706,7 @@ T  ----------------|---------------------| {no longer valid}
           of an intercepted session by representing the captured data to the
           server.</t>
 
-          <t>The SCS_ATIME value along with the session_max_age configuration
+          <t>The atime value along with the session_max_age configuration
           parameter allow SCS to mitigate the chances of an attack (by forcing
           a time window outside of which a given cookie is no longer valid),
           but cannot exclude it completely.</t>
@@ -797,12 +800,12 @@ T  ----------------|---------------------| {no longer valid}
                title="Advantages of SCS over Server-side Sessions">
 
         <t>Note that all the abovementioned vulnerabilities also apply to
-        typical server-side sessions, making SCS at least as secure (based on
-        the current analysis), but there are a few good reasons to
-        consider its security level enhanced.</t>
+        plain cookies, making SCS at least as secure, but there are a few 
+        good reasons to consider its security level enhanced.</t>
 
-        <t>First of all, the confidentiality feature provided by SCS protects
-        cookie state information which is normally plain-text.</t>
+        <t>First of all, the confidentiality and authentication features 
+        provided by SCS protects the cookie-value which is normally plain-text
+        and tamperable.</t>
 
         <t>Furthermore, none of the common vulnerabilities of server-side 
         sessions (SID prediction, SID brute forcing, session fixation <xref
@@ -811,8 +814,7 @@ T  ----------------|---------------------| {no longer valid}
         those relating to the previous set of credentials).</t>
 
         <t>More generally no slicing nor altering operations can be done over
-        an SCS PDU without controlling the cryptographic keyset and
-        cipherset.</t>
+        an SCS PDU without controlling the cryptographic keyset.</t>
       </section>
     </section>
   </middle>
@@ -838,8 +840,6 @@ T  ----------------|---------------------| {no longer valid}
       &RFC5246;
 
       &RFC3740;
-
-      &RFC4418;
 
       &RFC4301;
 

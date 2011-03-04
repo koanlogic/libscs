@@ -356,7 +356,6 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
     return ats->data;
 }
 
-
 /* Let the crypto toolkit handle PR generation of the block cipher IV.
  * The crypto driver is in charge of error reporting through scs_set_error(). */
 static int get_random_iv (scs_t *ctx)
@@ -787,7 +786,7 @@ static int tags_match (scs_t *ctx, const char *tag)
         return 0;
 
     scs_set_error(ctx, SCS_ERR_TAG_MISMATCH, 
-            "tag mismatch: <%s> != <%s>", ats->b64_tag, tag);
+            "tag mismatch: %s != %s", ats->b64_tag, tag);
 
     return -1;
 }

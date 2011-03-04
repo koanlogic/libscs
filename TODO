@@ -16,21 +16,10 @@ code:
 ==96275==    by 0x1000010F6: scs_encode (in ./test)
 ==96275==    by 0x100000E5D: main (in ./test)
 
+- introduce refresh + expiry parameters explicitly into scs_t 
 
 doc:
-- pack the 5 cookies into 1.  provide some external framing mechanism (e.g.
-  '|' separated b64 values) which can be indirectly authenticated by supplying
-  each atom's length to HMAC (together with the atom). note that length value 
-  is implicit with framing and must not be sent out.
-  less space for state data but much simpler and less fragile mechanism + 
-  protocol and browser friendly + simplified API:
-    scs_encode(state, &cookie);
-    state = scs_decode(cookie, &state_sz);
-  nothing prevents user to split one logical state cookie over a number of 
-  physical cookies.
-  also allows free choice of cookie naming.
 - s/(It can't be used when |S| > 1)/with an hint on using a sync/lazy querying 
   protocol in case |S| > 1 (sullivan@cs.vu.nl)
-- sec 4. "the key length SHOULD be at least 128 bits (of entropy)"
-
-
+- section with measures about SCS cookie inflation compared to plain cookies
+- 
