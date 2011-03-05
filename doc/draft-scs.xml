@@ -9,7 +9,7 @@
 <!ENTITY RFC5246 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5246.xml">
 <!ENTITY RFC3740 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3740.xml">
 <!ENTITY RFC4301 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4301.xml">
-<!ENTITY I-D.ietf-httpstate-cookie SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.draft-ietf-httpstate-cookie-22.xml">
+<!ENTITY I-D.ietf-httpstate-cookie SYSTEM "http://xml.resource.org/public/rfc/bibxml3/reference.I-D.draft-ietf-httpstate-cookie-23.xml">
 ]>
 <?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
 <?rfc strict="yes" ?>
@@ -98,19 +98,19 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
-      <t>This document provides an overview of SCS, a tiny cryptographic 
+      <t>This document provides an overview of SCS, a small cryptographic 
       protocol layered on top of the HTTP cookie facility, that let its 
       users produce and consume authenticated and encrypted cookies, as
       opposed to usual cookies, that are un-authenticated and sent in 
       clear-text.</t>
 
       <t>An interesting property, rising naturally from the given 
-      confidentiality and authentication properties, is that it is possible to 
-      avoid storing the session state material on server side altogether.  
-      In fact, an SCS cookie presented by the user agent to the origin server 
-      can always be validated (i.e. possibly reckognized as self-produced, 
-      untampered material) and, as such, be used to safely restore back 
-      the application state.</t>
+      confidentiality and authentication properties, is that, by using SCS
+      cookies, it is possible to avoid storing the session state material on 
+      server side altogether.  In fact, an SCS cookie presented by the user 
+      agent to the origin server can always be validated (i.e. possibly 
+      reckognized as self-produced, untampered material) and, as such, be 
+      used to safely restore back the application state.</t>
 
       <t>So, typical use cases may include devices with little or no storage
       offering some functionality via an HTTP interface, as well as web 
@@ -120,15 +120,15 @@
 
       <t>Nevertheless, its security properties allow SCS to be used whenever
       the privacy and integrity of cookies is a concern, by paying an 
-      affordable price in terms of the additional CPU clock cycles needed by
-      the symmetric key encryption and HMAC algorithms, and related key
-      management, which can be made a nearly transparent task.</t>
+      affordable price in terms of increased cookie size, additional CPU clock 
+      cycles needed by the symmetric key encryption and HMAC algorithms, and 
+      related key management, which can be made a nearly transparent task.</t>
     </abstract>
   </front>
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
-      <t>SCS is a tiny cryptographic protocol layered on top of the HTTP 
+      <t>SCS is a small cryptographic protocol layered on top of the HTTP 
       cookie facility <xref target="I-D.ietf-httpstate-cookie" />, that let its
       users produce and consume authenticated and encrypted cookies, as
       opposed to usual cookies, that are un-authenticated and sent in
@@ -194,8 +194,8 @@
           <t>the SCS cookie structure and encoding (<xref
           target="sec_pdu_description"></xref>);</t>
 
-          <t>the cryptographic transformations involved in SCS creation and
-          verification (<xref target="sec_crypto_transform"></xref>);</t>
+          <t>the cryptographic transformations involved in SCS cookie creation 
+          and verification (<xref target="sec_crypto_transform"></xref>);</t>
 
           <t>the HTTP-based PDU exchange (<xref
           target="sec_pdu_exchange"></xref>).</t>
@@ -215,11 +215,11 @@
       <t>In the following sections we assume S to be one or more
       interchangeable HTTP server entities (e.g. a server pool in a
       load-balanced or high-availability environment) and C to be the client 
-      with a cookie-enabled browser, or user agent with equivalent 
+      with a cookie-enabled browser, or any user agent with equivalent 
       capabilities.</t>
 
       <section anchor="sec_pdu_description" title="SCS Cookie Description">
-        <t>S and C exchange a cookie <xref target="sec_pdu_exchange" />,
+        <t>S and C exchange a cookie (<xref target="sec_pdu_exchange" />),
         whose cookie-value consists of a sequence of adjacent non-empty values,
         each of which is the Base-64 encoding of a specific SCS field, 
         separated by its left and/or right sibling by means of the %x7c ASCII 
@@ -249,7 +249,7 @@ AUTHTAG          = 4*base64-character
         <!-- hex or decimal ? -->
           <t>Absolute timestamp relating to the last read or write operation 
           performed on session DATA, encoded as a HEX string holding the number
-          of seconds since UNIX epoch (i.e. 00:00:00, Jan 1 1970.)</t>
+          of seconds since UNIX epoch (i.e. since 00:00:00, Jan 1 1970.)</t>
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.  If the delta between the received ATIME 
@@ -301,10 +301,9 @@ AUTHTAG          = 4*base64-character
           this SCS cookie.</t>
 
           <t>SCS assumes that a key-agreement/distribution mechanism exists
-          for environments in which S consists of multiple servers (it actually
-          consists of a simple key-refresh in the case |S|=1), which provides a
-          unique external identifier for each transform set defined and shared
-          amongst pool members.</t>
+          for environments in which S consists of multiple servers (a simple 
+          key-refresh in case |S|=1), which provides a unique external 
+          identifier for each transform set shared amongst pool members.</t>
         </section>
 
         <!-- end of TID -->
@@ -387,6 +386,9 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           <t>One should consider using larger cryptographic key lengths (192
           or 256 bit) according to the actual security and overall system
           performance requirements.</t>
+
+        <!-- TODO add reasoning about algo != AES-CBC / HMAC -->
+
         </section>
 
         <!-- end Cipher Set -->
@@ -421,15 +423,15 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
         <section anchor="sec_outbound_transform" title="Outbound Transform">
           <t>The output data transformation as seen by the server (the only
-          actor which manipulates PDUs) is illustrated by the pseudo-code in
-          <xref target="fig_outbound_transform"></xref>.</t>
+          actor which explicitly manipulates SCS cookies) is illustrated by the
+          pseudo-code in <xref target="fig_outbound_transform"></xref>.</t>
 
           <figure anchor="fig_outbound_transform">
             <artwork align="center"><![CDATA[
 1.  IV := RAND()
 2.  ATIME := NOW
 3.  DATA := Enc(Comp(plain-text-cookie-value))
-4.  tag := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
+4.  AUTHTAG := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
                 ]]></artwork>
           </figure>
 
@@ -447,7 +449,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           synchronized to avoid errors in the calculation of session expiry.</t>
 
           <t>The plain-text cookie value is then compressed (if needed) and
-          encoded by using the keyset identified by TID.</t>
+          encrypted by using the keyset identified by TID.</t>
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with padding bytes of equal
@@ -459,7 +461,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           "|"-separated concatenation of their base64 representations using 
           the keyset identified by TID (step 4.).</t>
 
-          <t>Hence the SCS cookie-value is created as follows:
+          <t>Finally the SCS cookie-value is created as follows:
           <list style="empty">
               <t>e(DATA)||e(ATIME)||e(TID)||e(IV)||e(tag)</t>
           </list></t>
@@ -509,7 +511,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <t>If the tag computed using the local keyset matches the one carried
           by the supplied SCS cookie, we can be confident about the fact the
-          cookie carries some authentic material; otherwise the SCS cookie
+          cookie carries authentic material; otherwise the SCS cookie
           is discarded (step 9.).</t>
 
           <t>Then the age of the SCS cookie (as deduced by ATIME field value
@@ -546,11 +548,12 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
         <figure anchor="fig_pdu_exchange">
           <artwork align="center"><![CDATA[
 1.  dump-state:
-    S -->                           --> C
+    S --> C
         Set-Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
            Expires=...; Path=...; Domain=...;
 
 2.  restore-state:
+    C --> S
         Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
           ]]></artwork>
         </figure>
@@ -667,14 +670,14 @@ T  ----------------|---------------------| {no longer valid}
       This is due to a couple of different factors: 
       <list style="symbols">
         <t>inflation of the Base-64 encoding of the state data (approx. 
-        1.37 times the original size), and</t> 
+        1.4 times the original size, encryption padding included), and</t> 
         <t>the fixed size increment (approx. 80/90 bytes) due to SCS fields and 
       framing overhead.</t>
       </list></t>
       <t>While the former is a price the user must always pay proportionally
       to the original data size, the latter is a fixed quantum, which can be 
       huge on small amounts of data, but is quickly absorbed as soon as data 
-      becomes big enough --  it's a 1% overhead for data greater than 150 
+      becomes big enough --  it's a TODO% overhead for data greater than TODO
       bytes.</t>
 
     </section>
@@ -902,9 +905,9 @@ T  ----------------|---------------------| {no longer valid}
     </references>
 
     <section anchor="ref-impl" title="Reference Implementation">
-      <t>A reference implementation (at present in very early stage) of the
-      SCS protocol can be found at <eref
-      target="http://github.com/koanlogic/libscs"></eref>.</t>
+      <t>A reference implementation (at present in early stage) of the SCS 
+      protocol can be found at 
+      <eref target="http://github.com/koanlogic/libscs"></eref>.</t>
     </section>
   </back>
 </rfc>
