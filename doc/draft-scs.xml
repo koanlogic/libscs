@@ -99,20 +99,20 @@
 
     <abstract>
       <t>This document provides an overview of SCS, a small cryptographic 
-      protocol layered on top of the HTTP cookie facility, that let its 
-      users produce and consume authenticated and encrypted cookies, as
-      opposed to usual cookies, that are un-authenticated and sent in 
-      clear-text.</t>
+      protocol layered on top of the HTTP cookie facility, that allows its
+      users to produce and consume authenticated and encrypted cookies, as
+      opposed to usual cookies, which are un-authenticated and sent in
+      clear text.</t>
 
       <t>An interesting property, rising naturally from the given 
-      confidentiality and authentication properties, is that, by using SCS
-      cookies, it is possible to avoid storing the session state material on 
-      server side altogether.  In fact, an SCS cookie presented by the user 
+      confidentiality and authentication properties, is that by using SCS
+      cookies, it is possible to avoid storing the session state material on the
+      server side altogether. In fact, an SCS cookie presented by the user
       agent to the origin server can always be validated (i.e. possibly 
       reckognized as self-produced, untampered material) and, as such, be 
-      used to safely restore back the application state.</t>
+      used to safely restore application state.</t>
 
-      <t>So, typical use cases may include devices with little or no storage
+      <t>Hence, typical use cases may include devices with little or no storage
       offering some functionality via an HTTP interface, as well as web 
       applications with high availability or load balancing requirements which 
       would prefer to handle application state without the need to synchronize 
@@ -129,12 +129,12 @@
   <middle>
     <section anchor="sec_intro" title="Introduction">
       <t>SCS is a small cryptographic protocol layered on top of the HTTP 
-      cookie facility <xref target="I-D.ietf-httpstate-cookie" />, that let its
-      users produce and consume authenticated and encrypted cookies, as
-      opposed to usual cookies, that are un-authenticated and sent in
-      clear-text.</t>
+      cookie facility <xref target="I-D.ietf-httpstate-cookie" />, that allows its
+      users to produce and consume authenticated and encrypted cookies, as
+      opposed to usual cookies, which are un-authenticated and sent in
+      clear text.</t>
 
-      <t>Having a non-tamperable proof of authorship attached, each SCS 
+      <t>By having a non-tamperable proof of authorship attached, each SCS
       cookie can always be validated by the originator, making it possible for
       a server to handle clients' session state without the need to store 
       it locally.  In fact, an SCS enabled server could completely delegate the 
@@ -207,9 +207,9 @@
       <t>Note that the PDU is transmitted to the client as an opaque data
       block, hence no interpretation nor validation is necessary.
       The single requirement for client-side support of SCS is cookie
-      activation on the user agent.  The sole origin server is involved in 
-      the PDU manipulation process, which greatly simplifies the crypto 
-      operations -- especially the key management, which is usually a pesky 
+      activation on the user agent.  The origin server is sole actor involved in
+      the PDU manipulation process, which greatly simplifies the crypto
+      operations -- especially key management, which is usually a pesky
       task.</t>
 
       <t>In the following sections we assume S to be one or more
@@ -223,7 +223,7 @@
         whose cookie-value consists of a sequence of adjacent non-empty values,
         each of which is the Base-64 encoding of a specific SCS field, 
         separated by its left and/or right sibling by means of the %x7c ASCII 
-        character (i.e. '|'), like this:
+        character (i.e. '|'), as follows:
         <figure>
             <artwork align="left"><![CDATA[
 scs-cookie       = scs-cookie-name "=" scs-cookie-value
@@ -243,7 +243,7 @@ AUTHTAG          = 4*base64-character
         the entire cookie-value.</t>
 
         <t>The following subsections describe the syntax and semantics of
-        of each SCS cookie field.</t>
+        each SCS cookie field.</t>
 
         <section anchor="sec_scs_atime" title="ATIME">
         <!-- hex or decimal ? -->
@@ -253,7 +253,7 @@ AUTHTAG          = 4*base64-character
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.  If the delta between the received ATIME 
-          value and current time on S, is older than a predefined
+          value and the current time on S, is older than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
@@ -295,8 +295,8 @@ AUTHTAG          = 4*base64-character
         <!-- end of DATA -->
 
         <section anchor="sec_scs_tid" title="TID">
-          <t>This identifier, equivalent to a SPI in a Data Security SA <xref
-          target="RFC3740"></xref>), is an ASCII string that uniquely 
+          <t>This identifier is equivalent to a SPI in a Data Security SA <xref
+          target="RFC3740"></xref>) and consists of an ASCII string that uniquely
           identifies the transform set (keys and algorithms) used to generate 
           this SCS cookie.</t>
 
@@ -330,9 +330,9 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
                base64(IV))
             ]]></artwork>
          </figure>
-         Note that, from a cryptographic point of view, the "|" char provides 
-         explicit authentication of the length of each supplied field, which
-         makes a robust countermeasure against splicing attacks.
+         Note that, from a cryptographic point of view, the "|" character
+         provides explicit authentication of the length of each supplied field,
+         which results in a robust countermeasure against splicing attacks.
          </t>
         </section>
 
@@ -400,7 +400,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           enabled, <xref target="RFC1951">DEFLATE</xref> format MUST be
           supported.</t>
 
-          <t>As an advise to SCS users, compression should not be enabled when 
+          <t>Some advice to SCS users: compression should not be enabled when
           handling relatively short and entropic state such as pseudo random 
           session identifiers.  Instead, large and quite regular state blobs 
           could get a significant boost when compressed.</t>
@@ -435,12 +435,13 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
                 ]]></artwork>
           </figure>
 
-          <t>A new Initialization Vector is picked up randomly (step 1.).  
-          As already said (<xref target="sec_scs_iv" />) this step is necessary
-          to avoid providing correlation information to an attacker.</t>
+          <t>A new Initialization Vector is randomly picked (step 1.).
+          As previouslty mentioned (<xref target="sec_scs_iv" />) this step is
+          necessary to avoid providing correlation information to an
+          attacker.</t>
 
-          <t>A new ATIME value is taken as the current timestamp of the 
-          server clock (step 2.).</t>
+          <t>A new ATIME value is taken as the current timestamp according to
+          the server clock (step 2.).</t>
 
           <t>Since the only user of the ATIME field is the server, it is
           unnecessary for it to be synchronized with the client -- though
@@ -448,17 +449,17 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           are active in a load-balancing configuration, clocks SHOULD be 
           synchronized to avoid errors in the calculation of session expiry.</t>
 
-          <t>The plain-text cookie value is then compressed (if needed) and
+          <t>The plain text cookie value is then compressed (if needed) and
           encrypted by using the keyset identified by TID.</t>
 
           <t>If the length of (compressed) state is not a multiple of the
-          block size, its value MUST be filled with padding bytes of equal
-          value as the pad length -- equivalent to the scheme defined in
+          block size, its value MUST be filled with as many padding bytes of
+          equal value as the pad length -- as defined in the scheme of
           Section 6.3 of <xref target="RFC5652"></xref>.</t>
 
-          <t>Then the authentication tag, which encompasses each SCS field (and
-          lengths, and relative positions) is computed by HMAC'ing the 
-          "|"-separated concatenation of their base64 representations using 
+          <t>Then the authentication tag, which encompasses each SCS field
+          (along with lengths, and relative positions) is computed by HMAC'ing
+          the "|"-separated concatenation of their base64 representations using
           the keyset identified by TID (step 4.).</t>
 
           <t>Finally the SCS cookie-value is created as follows:
@@ -493,7 +494,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           </figure>
 
           <t>First of all, the inbound scs-cookie-value is broken into its
-          component field (step 0.), and TID is decoded to allow keyset 
+          component fields (step 0.), and TID is decoded to allow keyset
           lookup (step 1.).</t>
 
           <t>If the cryptographic credentials (encryption and authentication
@@ -510,19 +511,19 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           the authentication tag (step 4.).</t>
 
           <t>If the tag computed using the local keyset matches the one carried
-          by the supplied SCS cookie, we can be confident about the fact the
-          cookie carries authentic material; otherwise the SCS cookie
-          is discarded (step 9.).</t>
+          by the supplied SCS cookie, we can be confident that the cookie
+          carries authentic material; otherwise the SCS cookie is discarded
+          (step 9.).</t>
 
           <t>Then the age of the SCS cookie (as deduced by ATIME field value
           and current time provided by the server clock) is compared to the 
           maximum time-to-live defined by the session_max_age parameter.</t>
 
           <t>We have finally reached the point where the algorithm can 
-          extract the original, plain-text data from the encrypted and 
+          extract the original plain text data from the encrypted and
           optionally compressed blob (step 7.).</t>
 
-          <t>Note that step 5. and 6. allows any altered packets or expired 
+          <t>Note that steps 5. and 6. allow any altered packets or expired
           sessions to be discarded, hence avoiding unnecessary state decryption
           and decompression.</t>
 
@@ -666,7 +667,7 @@ T  ----------------|---------------------| {no longer valid}
 
     <section anchor="scs_inflation" title="Cookie Size Considerations">
 
-      <t>In general, SCS cookies are bigger than their plain-text counterparts.
+      <t>In general, SCS cookies are bigger than their plain text counterparts.
       This is due to a couple of different factors: 
       <list style="symbols">
         <t>inflation of the Base-64 encoding of the state data (approx. 
@@ -827,7 +828,7 @@ T  ----------------|---------------------| {no longer valid}
         good reasons to consider its security level enhanced.</t>
 
         <t>First of all, the confidentiality and authentication features 
-        provided by SCS protects the cookie-value which is normally plain-text
+        provided by SCS protects the cookie-value which is normally plain text
         and tamperable.</t>
 
         <t>Furthermore, none of the common vulnerabilities of server-side 
