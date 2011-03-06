@@ -76,7 +76,7 @@
 
           <region></region>
 
-          <code>40139</code>
+          <code>40136</code>
 
           <country>Italy</country>
         </postal>
@@ -674,15 +674,33 @@ T  ----------------|---------------------| {no longer valid}
       This is due to a couple of different factors: 
       <list style="symbols">
         <t>inflation of the Base-64 encoding of the state data (approx. 
-        1.4 times the original size, encryption padding included), and</t> 
+        1.4 times the original size, including the encryption padding), and</t> 
         <t>the fixed size increment (approx. 80/90 bytes) due to SCS fields and 
       framing overhead.</t>
       </list></t>
       <t>While the former is a price the user must always pay proportionally
       to the original data size, the latter is a fixed quantum, which can be 
       huge on small amounts of data, but is quickly absorbed as soon as data 
-      becomes big enough --  it's a TODO% overhead for data greater than TODO
-      bytes.</t>
+      becomes big enough.</t>
+
+      <t>The following table compares byte lengths of SCS cookies (with a four
+      bytes' TID) and corresponding plain text cookies in a worst case scenario,
+      i.e. when no compression is in use (or applicable).
+      <figure>
+        <artwork align="center"><![CDATA[
+  plain |  SCS
+ -------+-------
+    11  |  128
+   102  |  256
+   285  |  512
+   651  | 1024
+  1382  | 2048
+  2842  | 4096
+        ]]></artwork>
+      </figure>
+      The largest uncompressed cookie value that can be safely supplied to SCS 
+      is about 2.8KB.
+      </t>
 
     </section>
 
