@@ -430,7 +430,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
             <artwork align="center"><![CDATA[
 1.  IV := RAND()
 2.  ATIME := NOW
-3.  DATA := Enc(Comp(plain-text-cookie-value))
+3.  DATA := Enc(Comp(plain-text-cookie-value), IV)
 4.  AUTHTAG := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
                 ]]></artwork>
           </figure>
@@ -450,7 +450,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           synchronized to avoid errors in the calculation of session expiry.</t>
 
           <t>The plain text cookie value is then compressed (if needed) and
-          encrypted by using the keyset identified by TID.</t>
+          encrypted by using the keyset identified by TID (step 3.).</t>
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with as many padding bytes of
@@ -464,7 +464,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <t>Finally the SCS cookie-value is created as follows:
           <list style="empty">
-              <t>e(DATA)||e(ATIME)||e(TID)||e(IV)||e(tag)</t>
+              <t>scs-cookie-value = e(DATA)||e(ATIME)||e(TID)||e(IV)||e(tag)</t>
           </list></t>
         </section>
 
@@ -479,17 +479,17 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 0.  split_fields(scs-cookie-value)
 1.  tid' := d(e(TID))
 2.  If (tid' is available)
-3.      data' := d(e(DATA))
-        atime' := d(e(ATIME))
-        iv' := d(e(IV))
-        tag' := d(e(AUTHTAG))
+3.      tag' := d(e(AUTHTAG))
 4.      tag := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
 5.      If (tag = tag')
-6.          If (NOW - atime' <= session_max_age)
-7.              state := Uncomp(Dec(data'))
-8.          Else discard PDU
-9.      Else discard PDU
-10. Else discard PDU
+6.          atime' := d(e(ATIME))
+7.          If (NOW - atime' <= session_max_age)
+8.              iv' := d(e(IV))
+                data' := d(e(DATA))
+9.              state := Uncomp(Dec(data', iv'))
+10.         Else discard PDU
+11.     Else discard PDU
+12. Else discard PDU
                 ]]></artwork>
           </figure>
 
@@ -498,7 +498,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           lookup (step 1.).</t>
 
           <t>If the cryptographic credentials (encryption and authentication
-          algorithms and keys identified by TID) are unavailable (step 10.),
+          algorithms and keys identified by TID) are unavailable (step 12.),
           the inbound SCS cookie is discarded as its value has no chance to
           be interpreted correctly.  
           This may happen for several reasons: e.g., if a device without 
@@ -506,24 +506,27 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           a server pool node desynchronizes, or in case of a key compromise 
           that forces the invalidation of all current TID's, etc.</t>
 
-          <t>When a valid keyset is found (step 2.), the remaining SCS fields 
-          are decoded (step 3.) and supplied to the primitive that computes 
-          the authentication tag (step 4.).</t>
+          <t>When a valid keyset is found (step 2.), the AUTHTAG field is
+          decoded (step 3.) and the (still) encoded DATA, ATIME, TID and IV 
+          fields are supplied to the primitive that computes the authentication
+          tag (step 4.).</t>
 
           <t>If the tag computed using the local keyset matches the one carried
           by the supplied SCS cookie, we can be confident that the cookie
           carries authentic material; otherwise the SCS cookie is discarded
-          (step 9.).</t>
+          (step 11.).</t>
 
           <t>Then the age of the SCS cookie (as deduced by ATIME field value
-          and current time provided by the server clock) is compared to the 
-          maximum time-to-live defined by the session_max_age parameter.</t>
+          and current time provided by the server clock) is decoded and 
+          compared to the maximum time-to-live defined by the session_max_age 
+          parameter.</t>
 
-          <t>We have finally reached the point where the algorithm can 
-          extract the original plain text data from the encrypted and
-          optionally compressed blob (step 7.).</t>
+          <t>In case the "age" check is passed, the DATA and IV fields are
+          finally decoded (step 8.), so that the original plain text data can 
+          be extracted from the encrypted and optionally compressed blob 
+          (step 9.).</t>
 
-          <t>Note that steps 5. and 6. allow any altered packets or expired
+          <t>Note that steps 5. and 7. allow any altered packets or expired
           sessions to be discarded, hence avoiding unnecessary state decryption
           and decompression.</t>
 
