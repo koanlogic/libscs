@@ -7,6 +7,9 @@
 #include <scs.h>
 %}
 
+typedef char uint8_t;
+typedef unsigned int time_t;
+
 /**
  * Maximum length of various transform identifiers.
  * May be overwritten at configuration time, e.g.: 
@@ -88,17 +91,39 @@ typedef enum
 struct scs_s;   /* Forward decls. */
 typedef struct scs_s scs_t;
 
+    /* /swig/ typemaps for scs_init() */
+    %typemap(in, numinputs=0) scs_t ** (scs_t **ps) {
+        $1 = &ps;
+    }
+    %typemap(argout) scs_t ** {
+        $result = SWIG_NewPointerObj(*$1, SWIGTYPE_p_scs_s, 0);
+    }
 
 /** Create and configure a new SCS context. */
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
         const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps);
 
+    /* \swig\ clear typemaps for scs_init() */
+    %clear (scs_t **);
+
 /** Create SCS cookie to transport \p state data. */
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX]);
 
+    /* /swig/ typemaps for scs_decode() */
+    %typemap(in, numinputs=0) size_t * (size_t *sz) {
+        $1 = &sz;
+    }
+
+    %typemap(argout) size_t * (size_t *sz) {
+        $result = PyString_FromStringAndSize(result, *$1);
+    }
+
 /** Decode SCS cookie to retrieve previously saved state data. */
 void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz);
+
+    /* \swig\ clear typemaps for scs_decode() */
+    %clear (size_t *);
 
 /** Dispose the supplied SCS context. */
 void scs_term (scs_t *ctx);

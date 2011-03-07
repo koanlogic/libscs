@@ -17,10 +17,11 @@ LDADD = ../../src/libscs.a
 SWIG_CMD ?= swig
 SWIG_WRAP = scsmodule_wrap.c
 SWIG_IN = scsmodule.i
+SWIG_OUT  = scs.py
 
 CLEANFILES += $(SWIG_WRAP)
-CLEANFILES += *.py
-CLEANFILES += *.pyc
+CLEANFILES += $(SWIG_OUT)
+CLEANFILES += scs.pyc
 
 include lib.mk
 
