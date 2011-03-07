@@ -12,13 +12,12 @@ s = scs.scs_init(
         0, 
         0);
 
-cookie = ''
 size = 0
 
 str = 'some cool state'
 print 'input state: [', str, ']'
 
-ck = scs.scs_encode(s, str, len(str), cookie)
+ck = scs.scs_encode(s, str, len(str))
 print 'encoded cookie: [', ck, ']'
 
 st = scs.scs_decode(s, ck)

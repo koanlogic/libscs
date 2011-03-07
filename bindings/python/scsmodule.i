@@ -106,9 +106,17 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     /* \swig\ clear typemaps for scs_init() */
     %clear (scs_t **);
 
+    /* /swig/ typemaps for scs_encode() */
+    %typemap(in, numinputs=0) char[SCS_COOKIE_MAX] (char c[SCS_COOKIE_MAX]) {
+        $1 = &c;
+    }
+
 /** Create SCS cookie to transport \p state data. */
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX]);
+
+    /* \swig\ clear typemaps for scs_encode() */
+    %clear (scs_t **);
 
     /* /swig/ typemaps for scs_decode() */
     %typemap(in, numinputs=0) size_t * (size_t *sz) {
