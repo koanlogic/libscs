@@ -91,7 +91,10 @@ typedef enum
 struct scs_s;   /* Forward decls. */
 typedef struct scs_s scs_t;
 
-    /* /swig/ typemaps for scs_init() */
+    /* /swig/ typemaps for scs_init()
+     *
+     * Return newly allocated SCS object instead of expecting output argument.
+     */
     %typemap(in, numinputs=0) scs_t ** (scs_t **ps) {
         $1 = &ps;
     }
@@ -106,7 +109,10 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     /* \swig\ clear typemaps for scs_init() */
     %clear (scs_t **);
 
-    /* /swig/ typemaps for scs_encode() */
+    /* /swig/ typemaps for scs_encode()
+     *
+     * Cookie parameter not required (buffer is used only internally).
+     */
     %typemap(in, numinputs=0) char[SCS_COOKIE_MAX] (char c[SCS_COOKIE_MAX]) {
         $1 = &c;
     }
@@ -118,11 +124,14 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     /* \swig\ clear typemaps for scs_encode() */
     %clear (scs_t **);
 
-    /* /swig/ typemaps for scs_decode() */
+    /* /swig/ typemaps for scs_decode()
+     *
+     * Don't require output cookie size, but use it to calculate size of
+     * returned string.
+     */
     %typemap(in, numinputs=0) size_t * (size_t *sz) {
         $1 = &sz;
     }
-
     %typemap(argout) size_t * (size_t *sz) {
         $result = PyString_FromStringAndSize(result, *$1);
     }
