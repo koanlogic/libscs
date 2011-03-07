@@ -103,6 +103,8 @@ typedef struct scs_s scs_t;
     }
 
 /** Create and configure a new SCS context. */
+    %rename scs_init (const char *, scs_cipherset_t, const uint8_t *,
+        const uint8_t *, int, time_t, scs_t **) init;
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
         const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps);
 
@@ -118,6 +120,8 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     }
 
 /** Create SCS cookie to transport \p state data. */
+    %rename scs_encode (scs_t *, const uint8_t *,
+            size_t, char[SCS_COOKIE_MAX]) encode;
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX]);
 
@@ -137,17 +141,22 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     }
 
 /** Decode SCS cookie to retrieve previously saved state data. */
+    %rename scs_decode (scs_t *, const char *, size_t *) decode;
 void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz);
 
     /* \swig\ clear typemaps for scs_decode() */
     %clear (size_t *);
 
 /** Dispose the supplied SCS context. */
+    %rename scs_term(scs_t *) term;
 void scs_term (scs_t *ctx);
 
 /* Return last error string. */
+    %rename scs_err (scs_t *) err;
 const char *scs_err (scs_t *ctx);
 
 /** Refresh key material and shift active keyset. */
+    %rename scs_refresh_keyset (scs_t *, const char *, const uint8_t *,
+        const uint8_t *) refresh_keyset;
 int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
         const uint8_t *hkey);
