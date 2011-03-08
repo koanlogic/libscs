@@ -47,6 +47,10 @@ CYASSL_BASE="/usr/local/cyassl"
 makl_optional 1 "lib" "cyassl" \
                   "-I${CYASSL_BASE}/include" "-L${CYASSL_BASE}/lib -lcyassl"
 
+# Binary dependencies (for bindings)
+makl_optional 1 "featx" "swig"
+makl_optional 1 "featx" "python"
+
 #
 # Handle command line arguments.
 #
