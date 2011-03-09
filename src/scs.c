@@ -61,9 +61,12 @@ static struct
 static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
 static int new_key (uint8_t *dst, const uint8_t *src, size_t sz);
+static int new_keyset (scs_t *ctx, scs_keyset_t *ks, const uint8_t *k, 
+        const uint8_t *hk);
 static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid);
 static void reset_atoms (scs_atoms_t *atoms);
 static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len);
+static int what_time_is_it (scs_t *ctx, time_t *pnow);
 
 /* Encode support. */
 static int get_random_iv (scs_t *ctx);
@@ -91,6 +94,9 @@ static int split_cookie (scs_t *ctx, const char *cookie,
         char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1]);
 static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz);
 
+/* Auto refresh support. */
+static int check_update_keyset (scs_t *ctx);
+
 /**
  *  \{
  */
@@ -108,6 +114,12 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     scs_atoms_t *ats = &ctx->atoms;
     scs_keyset_t *ks = &ctx->cur_keyset;
     int skip_atoms_encoding = 1;
+
+    /* Before doing anything useful, check if keyset needs to be updated. 
+     * All crypto ops must be carried against a "fresh" -- as defined by the
+     * current policy -- keyset. */
+    if (check_update_keyset(ctx))
+        return NULL;
 
     reset_atoms(ats);
 
@@ -140,6 +152,10 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
 void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
 {
     char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1];
+
+    /* Check current keyset status. */
+    if (check_update_keyset(ctx))
+        return NULL;
 
     /* Cleanup the context. */
     reset_atoms(&ctx->atoms);
@@ -177,10 +193,16 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
 
     /* Initialize current keyset. */
     if ((rc = init_keyset(s, &s->cur_keyset, tid, comp, cipherset, key, hkey)))
+        goto err;
+
+    /* Initialize last refresh timestamp. */
+    if (what_time_is_it(s, &s->last_refresh))
     {
-        free(s);
-        return rc;
+        rc = SCS_ERR_OS;
+        goto err;
     }
+
+    s->refresh_mode = SCS_REFRESH_AUTO;
 
     /* Upper bound session lifetime. */
     s->max_session_age = max_session_age;
@@ -201,6 +223,10 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     *ps = s;
 
     return SCS_OK;
+err:
+    if (s)
+        free(s);
+    return rc;
 }
 
 /** 
@@ -221,27 +247,53 @@ const char *scs_err (scs_t *ctx)
     return ctx->estr;
 }
 
+/**
+ *  Refresh current keyset with the supplied keying material.
+ */ 
 int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
         const uint8_t *hkey)
 {
+    time_t now;
+
     scs_keyset_t *cur = &ctx->cur_keyset, *prev = &ctx->prev_keyset, tmp;
 
     tmp = *prev;
     *prev = *cur;
 
-    if (new_key(cur->key, key, cur->key_sz)
-            || new_key(cur->hkey, hkey, cur->hkey_sz))
+    /* Get current timestamp. */
+    if (what_time_is_it(ctx, &now))
+        return -1;
+
+    /* Create new keying material. */
+    if (new_keyset(ctx, cur, key, hkey))
         goto recover;
 
     /* Set new tid name. */
-    return set_tid(ctx, cur, new_tid);
+    if (set_tid(ctx, cur, new_tid))
+        return -1;
+
+    /* Update last refresh timestamp. */
+    ctx->last_refresh = now;
+
+    return 0;
 
 recover:
-    scs_set_error(ctx, SCS_ERR_REFRESH, "Could not create new keys");
     *cur = *prev;
     *prev = tmp;
 
     return -1;
+}
+
+/**
+ *  Set auto-refresh policy parameters.
+ */ 
+int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
+{
+    ctx->refresh_mode = SCS_REFRESH_AUTO;
+    ctx->refresh_freq = refresh_freq;
+    ctx->expiry = expiry;
+
+    return 0; 
 }
 
 /**
@@ -370,15 +422,11 @@ static int get_random_iv (scs_t *ctx)
 static int get_atime (scs_t *ctx)
 {
     time_t atime;
-    char ebuf[128];
     scs_atoms_t *ats = &ctx->atoms;
 
-    if ((atime = time(NULL)) == (time_t) -1)
-    {
-        (void) strerror_r(errno, ebuf, sizeof ebuf);
-        scs_set_error(ctx, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+    /* Get current timestamp. */
+    if (what_time_is_it(ctx, &atime))
         return -1;
-    }
 
     /* Get string representation of atime which will be used later on when 
      * creating the authentication tag. */
@@ -615,16 +663,6 @@ static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
     return SCS_OK;
 }
 
-static int new_key (uint8_t *dst, const uint8_t *src, size_t sz)
-{
-    if (src == SCS_KEY_AUTO)
-        return D.rand(NULL, dst, sz);
-
-    memcpy(dst, src, sz);
-
-    return 0;
-}
-
 static scs_keyset_t *retr_keyset (scs_t *ctx)
 {
     char raw_tid[SCS_TID_MAX];
@@ -793,16 +831,12 @@ static int tags_match (scs_t *ctx, const char *tag)
 
 static int atime_ok (scs_t *ctx)
 {
-    char ebuf[128];
     time_t now, atime, delta;
     scs_atoms_t *ats = &ctx->atoms;
 
-    if ((now = time(NULL)) == (time_t) -1)
-    {
-        (void) strerror_r(errno, ebuf, sizeof ebuf);
-        scs_set_error(ctx, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+    /* Get current timestamp. */
+    if (what_time_is_it(ctx, &now))
         return -1;
-    }
 
     /* Get time_t representation of atime (XXX do it better). */
     atime = (time_t) atoi(ats->atime);
@@ -903,6 +937,70 @@ static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len)
         *dst++ = (char) ((*src++ % 93) + 33);
 
     *dst = '\0';
+
+    return 0;
+}
+
+static int check_update_keyset (scs_t *ctx)
+{
+    time_t now;
+
+    if (ctx->refresh_mode != SCS_REFRESH_AUTO)
+        return 0;
+
+    if (what_time_is_it(ctx, &now))
+        return -1;
+
+    if (now < ctx->last_refresh + ctx->refresh_freq)
+        return 0;
+
+    return scs_refresh_keyset(ctx, SCS_TID_AUTO, SCS_KEY_AUTO, SCS_KEY_AUTO);
+}
+
+static int what_time_is_it (scs_t *ctx, time_t *pnow)
+{
+    time_t now;
+    char ebuf[128];
+
+    if ((now = time(NULL)) == (time_t) -1)
+    {
+        (void) strerror_r(errno, ebuf, sizeof ebuf);
+        scs_set_error(ctx, SCS_ERR_OS, "time(3) failed: %s", ebuf);
+        return -1;
+    }
+
+    *pnow = now;
+
+    return 0;
+}
+
+static int new_keyset (scs_t *ctx, scs_keyset_t *ks, const uint8_t *k, 
+        const uint8_t *hk)
+{
+    time_t now;
+
+    if (what_time_is_it(ctx, &now))
+        return -1;
+
+    if (new_key(ks->key, k, ks->key_sz) 
+            || new_key(ks->hkey, hk, ks->hkey_sz))
+    {
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "keyset update failed.");
+        return -1;
+    }
+
+    /* Update last refresh timestamp. */
+    ctx->last_refresh = now;
+
+    return 0;
+}
+
+static int new_key (uint8_t *dst, const uint8_t *src, size_t sz)
+{
+    if (src == SCS_KEY_AUTO)
+        return D.rand(NULL, dst, sz);
+
+    memcpy(dst, src, sz);
 
     return 0;
 }

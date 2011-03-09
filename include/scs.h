@@ -87,6 +87,9 @@ typedef enum
 /* Compression. */
 enum { SCS_DO_NOT_COMPRESS = 0, SCS_DO_COMPRESS };
 
+/* Refresh modes. */
+enum { SCS_REFRESH_MANUAL = 0, SCS_REFRESH_AUTO };
+
 /**
  * SCS runtime context.
  */
@@ -114,5 +117,8 @@ const char *scs_err (scs_t *ctx);
 /** Refresh key material and shift active keyset. */
 int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
         const uint8_t *hkey);
+
+/** Set auto-refresh policy parameters. */
+int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry);
 
 #endif  /* !_SCS_H_ */

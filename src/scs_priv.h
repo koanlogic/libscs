@@ -88,6 +88,11 @@ struct scs_s
 
     time_t max_session_age;
 
+    time_t refresh_freq;
+    time_t expiry;
+    time_t last_refresh;
+    int refresh_mode;
+
     /* SCS protocol atoms. */
     struct scs_atoms_s atoms;
 };

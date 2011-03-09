@@ -16,10 +16,12 @@ code:
 ==96275==    by 0x1000010F6: scs_encode (in ./test)
 ==96275==    by 0x100000E5D: main (in ./test)
 
-- introduce refresh + expiry parameters explicitly into scs_t 
+- check for possible all-empty attack on prev_keyset in case prev_keyset is
+  not initialized
 
 doc:
 - s/(It can't be used when |S| > 1)/with an hint on using a sync/lazy querying 
   protocol in case |S| > 1 (sullivan@cs.vu.nl)
-- section with measures about SCS cookie inflation compared to plain cookies
-- 
+- check security considerations against: 
+    http://tools.ietf.org/html/draft-ietf-httpstate-cookie-23#section-8
+
