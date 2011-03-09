@@ -86,7 +86,7 @@ struct scs_s
     /* Current and previously active keyset. */
     struct scs_keyset_s cur_keyset, prev_keyset;
 
-    time_t max_session_age;
+    time_t session_max_age;
 
     time_t refresh_freq;
     time_t expiry;

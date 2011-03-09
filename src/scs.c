@@ -177,7 +177,7 @@ void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
  *          to false). 
  */ 
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
-        const uint8_t *hkey, int comp, time_t max_session_age, scs_t **ps)
+        const uint8_t *hkey, int comp, time_t session_max_age, scs_t **ps)
 {
     scs_err_t rc;
     scs_t *s = NULL;
@@ -204,7 +204,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     s->refresh_mode = SCS_REFRESH_MANUAL;
 
     /* Upper bound session lifetime. */
-    s->max_session_age = max_session_age;
+    s->session_max_age = session_max_age;
 
     /* New SCS context'es have one only active keyset (cur). */
     s->cur_keyset.active = 1;
@@ -291,8 +291,9 @@ recover:
 int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
 {
     ctx->refresh_mode = SCS_REFRESH_AUTO;
-    ctx->refresh_freq = refresh_freq;
-    ctx->expiry = expiry;
+
+    ctx->refresh_freq = MAX(refresh_freq, ctx->session_max_age);
+    ctx->expiry = MIN(expiry, ctx->session_max_age);
 
     return 0; 
 }
@@ -388,7 +389,7 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
      *         iv' = d($SCS_IV)
      *         tag' = d($SCS_AUTHTAG)
      * 3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
-     * 4.     If (tag == tag' && NOW - atime' <= max_session_age)
+     * 4.     If (tag == tag' && NOW - atime' <= session_max_age)
      * 5.         state = Uncomp(Dec(data'))
      * 6.     Else discard PDU
      * 7.  Else discard PDU        */
@@ -842,12 +843,12 @@ static int atime_ok (scs_t *ctx)
     /* Get time_t representation of atime (XXX do it better). */
     atime = (time_t) atoi(ats->atime);
 
-    if ((delta = (now - atime)) <= ctx->max_session_age)
+    if ((delta = (now - atime)) <= ctx->session_max_age)
         return 0;
 
     scs_set_error(ctx, SCS_ERR_SESSION_EXPIRED, 
             "session expired %"PRIdMAX" seconds ago", 
-            (intmax_t) (delta - ctx->max_session_age));
+            (intmax_t) (delta - ctx->session_max_age));
 
     return -1;
 }

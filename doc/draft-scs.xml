@@ -253,7 +253,7 @@ AUTHTAG          = 4*base64-character
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.  If the delta between the received ATIME 
-          value and the current time on S, is older than a predefined
+          value and the current time on S, is larger than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
@@ -827,8 +827,8 @@ T  ----------------|---------------------| {no longer valid}
 
         <section anchor="sec_cookie_sharing_or_theft"
                  title="Cookie Sharing or Theft">
-          <t>SCS doesn't prevent sharing (both voluntary and illegitimate) of
-          cookies between multiple clients.</t>
+          <t>Just like with plain cookies, SCS doesn't prevent sharing (both 
+          voluntary and illegitimate) of cookies between multiple clients.</t>
 
           <t>In the context of voluntary cookie sharing, using HTTPS is
           useless: Client certificates are just as shareable as cookies, hence
