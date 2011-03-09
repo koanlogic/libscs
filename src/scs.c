@@ -61,8 +61,6 @@ static struct
 static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
 static int new_key (uint8_t *dst, const uint8_t *src, size_t sz);
-static int new_keyset (scs_t *ctx, scs_keyset_t *ks, const uint8_t *k, 
-        const uint8_t *hk);
 static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid);
 static void reset_atoms (scs_atoms_t *atoms);
 static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len);
@@ -96,6 +94,7 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz);
 
 /* Auto refresh support. */
 static int check_update_keyset (scs_t *ctx);
+static int update_last_refresh (scs_t *ctx, time_t now);
 
 /**
  *  \{
@@ -202,7 +201,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         goto err;
     }
 
-    s->refresh_mode = SCS_REFRESH_AUTO;
+    s->refresh_mode = SCS_REFRESH_MANUAL;
 
     /* Upper bound session lifetime. */
     s->max_session_age = max_session_age;
@@ -254,6 +253,7 @@ int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key,
         const uint8_t *hkey)
 {
     time_t now;
+    scs_keyset_t *ks = &ctx->cur_keyset;
 
     scs_keyset_t *cur = &ctx->cur_keyset, *prev = &ctx->prev_keyset, tmp;
 
@@ -265,15 +265,16 @@ int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key,
         return -1;
 
     /* Create new keying material. */
-    if (new_keyset(ctx, cur, key, hkey))
+    if (new_key(ks->key, key, ks->key_sz)
+            || new_key(ks->hkey, hkey, ks->hkey_sz))
+    {
+        scs_set_error(ctx, SCS_ERR_CRYPTO, "keyset update failed.");
         goto recover;
+    }
 
     /* Set new tid name. */
     if (set_tid(ctx, cur, new_tid))
         return -1;
-
-    /* Update last refresh timestamp. */
-    ctx->last_refresh = now;
 
     return 0;
 
@@ -951,10 +952,24 @@ static int check_update_keyset (scs_t *ctx)
     if (what_time_is_it(ctx, &now))
         return -1;
 
+    /* First of all we check if the expiry period of the previous keyset is 
+     * elapsed, in which case the backup keyset is disposed.  Note that this 
+     * could happen with a primary keyset still in good shape. */
+    if (ctx->last_refresh + ctx->expiry < now)
+        ctx->prev_keyset.active = 0;
+
+    /* Then try and see if the primary keyset lifetime is expired... */
     if (now < ctx->last_refresh + ctx->refresh_freq)
         return 0;
 
-    return scs_refresh_keyset(ctx, SCS_TID_AUTO, SCS_KEY_AUTO, SCS_KEY_AUTO);
+    /* ...in which case the whole keyset is updated. */
+    if (scs_refresh_keyset(ctx, SCS_TID_AUTO, SCS_KEY_AUTO, SCS_KEY_AUTO))
+        return -1;
+
+    /* Update last refresh timestamp. */
+    (void) update_last_refresh(ctx, now);
+
+    return 0;
 }
 
 static int what_time_is_it (scs_t *ctx, time_t *pnow)
@@ -974,33 +989,33 @@ static int what_time_is_it (scs_t *ctx, time_t *pnow)
     return 0;
 }
 
-static int new_keyset (scs_t *ctx, scs_keyset_t *ks, const uint8_t *k, 
-        const uint8_t *hk)
-{
-    time_t now;
-
-    if (what_time_is_it(ctx, &now))
-        return -1;
-
-    if (new_key(ks->key, k, ks->key_sz) 
-            || new_key(ks->hkey, hk, ks->hkey_sz))
-    {
-        scs_set_error(ctx, SCS_ERR_CRYPTO, "keyset update failed.");
-        return -1;
-    }
-
-    /* Update last refresh timestamp. */
-    ctx->last_refresh = now;
-
-    return 0;
-}
-
 static int new_key (uint8_t *dst, const uint8_t *src, size_t sz)
 {
     if (src == SCS_KEY_AUTO)
         return D.rand(NULL, dst, sz);
 
     memcpy(dst, src, sz);
+
+    return 0;
+}
+
+static int update_last_refresh (scs_t *ctx, time_t now)
+{
+    /* Manual refresh: just do what we're told. */
+    if (ctx->refresh_mode == SCS_REFRESH_MANUAL)
+    {
+        ctx->last_refresh = now;
+        return 0;
+    }
+
+    /* Don't let further modulo operation be confused. */
+    if (now == ctx->last_refresh)
+        return 0;
+
+    /* Automatic refresh update policy is to set .last_refresh timestamp
+     * to the nearest (to now) multiple of .refresh_freq starting from previous
+     * .last_refresh. */
+    ctx->last_refresh = now - ((now - ctx->last_refresh) % ctx->refresh_freq);
 
     return 0;
 }
