@@ -50,6 +50,7 @@ makl_optional 1 "lib" "cyassl" \
 # Binary dependencies (for bindings)
 makl_optional 1 "featx" "swig"
 makl_optional 1 "featx" "python"
+makl_optional 1 "featx" "doxygen"
 
 #
 # Handle command line arguments.

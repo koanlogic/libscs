@@ -97,15 +97,38 @@ static int check_update_keyset (scs_t *ctx);
 static int update_last_refresh (scs_t *ctx, time_t now);
 
 /**
+ *  \defgroup scs SCS
  *  \{
+ *      TODO
+ *
+ *      \section init   Initialization
+ *      TODO
+ *
+ *      \section encode Encoding
+ *      TODO
+ *
+ *      \section decode Decoding
+ *      TODO
+ *
+ *      \section refresh    Automatic Refreshing of Keying Material
+ *      TODO
  */
 
 /**
- *  \brief  Given the supplied \p state blob return the SCS cookie string
- *          into the \p cookie char buffer.  The \p cookie must be at least
- *          SCS_COOKIE_MAX bytes long and pre-allocated by the caller.
- *          When an error occurs \c NULL is returned and the supplied \p ctx 
- *          can be inspected for failure cause -- \sa scs_err function.
+ *  \brief  Encode plain cookie-value to an SCS cookie-value.
+ *
+ *  Given the supplied \p state blob return the SCS cookie string
+ *  into the \p cookie char buffer.  The \p cookie must be at least
+ *  SCS_COOKIE_MAX bytes long and pre-allocated by the caller.
+ *  When an error occurs \c NULL is returned and the supplied \p ctx 
+ *  can be inspected for failure cause -- \sa scs_err function.
+ *
+ *  \param  ctx         TODO
+ *  \param  state       TODO
+ *  \param  state_sz    TODO
+ *  \param  cookie      TODO
+ *
+ *  \return TODO
  */
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX])
@@ -286,7 +309,7 @@ recover:
 }
 
 /**
- *  Set auto-refresh policy parameters.
+ *  \brief  Set auto-refresh policy parameters.
  */ 
 int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
 {
