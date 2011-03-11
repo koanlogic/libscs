@@ -99,6 +99,11 @@ typedef struct scs_s scs_t;
         $1 = &ps;
     }
     %typemap(argout) scs_t ** {
+        char buf[128];
+        if (result) {
+            snprintf(buf, sizeof(buf), "failed scs_init() (rc=%d)", result);
+            SWIG_exception_fail(0, buf);
+        }
         $result = SWIG_NewPointerObj(*$1, SWIGTYPE_p_scs_s, 0);
     }
 
@@ -138,7 +143,7 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     }
     %typemap(argout) size_t * (size_t *sz) {
         if (result == NULL)
-            SWIG_exception_fail(0, "failed scs_decode");
+            SWIG_exception_fail(0, "failed scs_decode()");
         $result = PyString_FromStringAndSize(result, *$1);
     }
 
