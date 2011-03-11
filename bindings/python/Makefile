@@ -18,16 +18,24 @@ NO_INSTALL = yes
 
 SRCS = $(SWIG_WRAP)
 
+# python flags
 CFLAGS += $(shell $(PATH_PYTHON)-config --cflags)
-CFLAGS += $(LIBCYASSL_CFLAGS)
 LDFLAGS += $(shell $(PATH_PYTHON)-config --ldflags)
+
+# cyassl flags
+CFLAGS += $(LIBCYASSL_CFLAGS)
 LDFLAGS += $(LIBCYASSL_LDFLAGS)
 
-LDADD = ../../src/libscs.a
+# scs flags
+LDFLAGS += -L$(LIBDIR) -lscs
 
+# swig files
 SWIG_WRAP = scsmodule_wrap.c
 SWIG_IN = scsmodule.i
 SWIG_OUT = scs.py
+
+# mod_pytho wrapper
+MODPY_WRAP = modpyscs.py
 
 # get site package dir directly from python
 PY_SITEDIR=$(shell $(PATH_PYTHON) -c \
@@ -40,10 +48,13 @@ CLEANFILES += scs.pyc
 
 include lib.mk
 
-$(SWIG_WRAP):
+$(SWIG_WRAP): $(SWIG_IN)
 	$(PATH_SWIG) -python $(SWIG_IN)
 
 all-hook-pre: $(SWIG_WRAP)
 
 install:
-	$(INSTALL) $(SWIG_OUT) $(SHLIB_NAME) $(PY_SITEDIR)
+	$(INSTALL) $(SWIG_OUT) \
+        $(SHLIB_NAME) \
+        $(MODPY_WRAP) \
+        $(PY_SITEDIR)
