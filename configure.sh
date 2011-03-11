@@ -50,6 +50,11 @@ makl_optional 1 "lib" "cyassl" \
 # Binary dependencies (for bindings)
 makl_optional 1 "featx" "swig"
 makl_optional 1 "featx" "python"
+makl_optional 1 "featx" "python-config"     # -dev package
+makl_optional 1 "featx" "php"
+makl_optional 1 "featx" "php-config"        # -dev package
+
+# Docs
 makl_optional 1 "featx" "doxygen"
 
 #
