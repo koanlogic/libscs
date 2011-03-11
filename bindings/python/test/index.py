@@ -5,6 +5,8 @@ import time
 
 def index(req):
 
+    s = None
+
     try: 
         req.content_type = "text/html"
 
@@ -42,5 +44,10 @@ def index(req):
     except Exception, e:
 
         req.content_type = "text/html"
-        return 'An exception occurred: %s! (scs_err: %s)' % (str(e), s.err())
+
+        retstr = 'An exception occurred: %s!' % (str(e))
+        if s:
+            retstr += ' (scs_err: %s)' % (s.err())
+
+        return retstr
 
