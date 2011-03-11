@@ -137,6 +137,8 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         $1 = &sz;
     }
     %typemap(argout) size_t * (size_t *sz) {
+        if (result == NULL)
+            SWIG_exception_fail(0, "failed scs_decode");
         $result = PyString_FromStringAndSize(result, *$1);
     }
 
