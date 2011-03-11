@@ -122,7 +122,7 @@ int openssl_tag (scs_t *ctx, scs_keyset_t *ks)
 
     HMAC_Update(&c, (unsigned char *) ats->b64_data, strlen(ats->b64_data));
     HMAC_Update(&c, (unsigned char *) "|", 1);
-    HMAC_Update(&c, (unsigned char *) ats->b64_atime, strlen(ats->b64_atime));
+    HMAC_Update(&c, (unsigned char *) ats->b64_tstamp, strlen(ats->b64_tstamp));
     HMAC_Update(&c, (unsigned char *) "|", 1);
     HMAC_Update(&c, (unsigned char *) ats->b64_tid, strlen(ats->b64_tid));
     HMAC_Update(&c, (unsigned char *) "|", 1);
@@ -134,8 +134,8 @@ int openssl_tag (scs_t *ctx, scs_keyset_t *ks)
             || !HMAC_Update(&c, (unsigned char *) ats->b64_data, 
                             strlen(ats->b64_data))
             || !HMAC_Update(&c, (unsigned char *) "|", 1);
-            || !HMAC_Update(&c, (unsigned char *) ats->b64_atime, 
-                            strlen(ats->b64_atime))
+            || !HMAC_Update(&c, (unsigned char *) ats->b64_tstamp, 
+                            strlen(ats->b64_tstamp))
             || !HMAC_Update(&c, (unsigned char *) "|", 1);
             || !HMAC_Update(&c, (unsigned char *) ats->b64_tid, 
                             strlen(ats->b64_tid))

@@ -72,7 +72,7 @@ int cyassl_tag (scs_t *ctx, scs_keyset_t *ks)
 
     HmacUpdate(&hmac, (byte *) ats->b64_data, strlen(ats->b64_data));
     HmacUpdate(&hmac, (byte *) "|", 1);
-    HmacUpdate(&hmac, (byte *) ats->b64_atime, strlen(ats->b64_atime));
+    HmacUpdate(&hmac, (byte *) ats->b64_tstamp, strlen(ats->b64_tstamp));
     HmacUpdate(&hmac, (byte *) "|", 1);
     HmacUpdate(&hmac, (byte *) ats->b64_tid, strlen(ats->b64_tid));
     HmacUpdate(&hmac, (byte *) "|", 1);

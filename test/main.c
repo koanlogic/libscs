@@ -44,6 +44,12 @@ typedef struct
         OUT_TYPE_FILE                   /* -o <filename> */
     } out_type;
 
+    enum {
+        OUT_WHAT_ALL,                   /* Default print out everything. */
+        OUT_WHAT_ENCODE,                /* -e: only the encoded value. */
+        OUT_WHAT_DECODE                 /* -d: only the decoded value. */
+    } out_what;
+
     /*
      * Output file name in case of OUT_TYPE_DECODED_STATE_FILE.
      */ 
@@ -121,10 +127,16 @@ void parse_opts (int ac, char **av, run_t *ptest)
 {
     int c;
 
-    while ((c = getopt(ac, av, "c:f:h:k:l:o:t:s:zADEH:K:RT:")) != -1)
+    while ((c = getopt(ac, av, "c:def:h:k:l:o:t:s:zADEH:K:RT:")) != -1)
     {
         switch (c)
         {
+            case 'e':
+                ptest->out_what = OUT_WHAT_ENCODE;
+                break;
+            case 'd':
+                ptest->out_what = OUT_WHAT_DECODE;
+                break;
             case 'E':
                 ptest->op = OP_ENCODE;
                 break;
@@ -192,6 +204,7 @@ void init_params (run_t *ptest)
     ptest->in_s[0] = ptest->in_fn[0] = ptest->in_cookie[0] = '\0';
     ptest->out_type = OUT_TYPE_STRING;
     ptest->out_fn[0] = '\0';
+    ptest->out_what = OUT_WHAT_ALL;
     ptest->k[0] = ptest->hk[0] = ptest->K[0] = ptest->HK[0] = '\0';
     ptest->tid[0] = ptest->TID[0] = '\0';
     ptest->ttl = 3600;
@@ -216,6 +229,8 @@ void usage (const char *progname)
         "       [-c string]     SCS cookie-value string\n\n"
         "    output type (default is to write result to stdout):\n"
         "       [-o file]       write result to file\n\n"
+        "       [-e]            write only the encoded string\n"
+        "       [-d]            write only the decoded string\n"
         "    keyset material:\n"
         "       [-t string]     SCS TID string\n"
         "       [-k string]     cipher key\n"
@@ -261,7 +276,8 @@ void encode (run_t *t, scs_t *ctx)
     if (scs_encode(ctx, s, s_sz, cookie) == NULL)
         errx(EXIT_FAILURE, "%s", scs_err(ctx));
 
-    test_output(t, cookie);
+    if (t->out_what != OUT_WHAT_DECODE)
+        test_output(t, cookie);
 
     /* See if we have to chain operations. */
     if (t->op == OP_ENCODE_AND_DECODE 
@@ -298,7 +314,8 @@ void decode (run_t *t, scs_t *ctx)
 
     s[s_sz] = '\0'; /* Check if needed. */
 
-    test_output(t, s);
+    if (t->out_what != OUT_WHAT_ENCODE)
+        test_output(t, s);
 
     return;
 }
@@ -338,7 +355,7 @@ void read_from_file (const char *fn, uint8_t **pb, size_t *pb_sz)
     rewind(fp);
 
     if ((b = malloc(sz)) == NULL)
-        err(EXIT_FAILURE, "getting memory");
+        err(EXIT_FAILURE, "getting memory for reading from %s", fn);
 
     if (fread(b, sz, 1, fp) != 1)
         err(EXIT_FAILURE, "reading from %s", fn);
