@@ -24,4 +24,8 @@ doc:
   protocol in case |S| > 1 (sullivan@cs.vu.nl)
 - check security considerations against: 
     http://tools.ietf.org/html/draft-ietf-httpstate-cookie-23#section-8
-
+- time based key update mechanism:
+    given S = S1 || S2
+    enc_key = HMAC_{S1}(foo(now, refresh_interval))
+    auth_key = HMAC_{S2}(foo(now, refresh_interval))
+    

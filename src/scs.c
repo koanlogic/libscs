@@ -914,6 +914,7 @@ static int do_inflate (scs_t *ctx)
     int ret;
     z_stream zstr;
     scs_atoms_t *ats = &ctx->atoms;
+    uint8_t tmp[sizeof ats->data];
 
     zstr.zalloc = Z_NULL;
     zstr.zfree = Z_NULL;
@@ -925,15 +926,14 @@ static int do_inflate (scs_t *ctx)
     zstr.next_in = (Bytef *) ats->data;
     zstr.avail_in = ats->data_sz;
 
-    /* TODO 
-     * check if we have to use a temp buffer to avoid possible overwrite. */
-    zstr.next_out = ats->data;
+    zstr.next_out = tmp;
     zstr.avail_out = sizeof ats->data;
 
     if ((ret = inflate(&zstr, Z_FINISH)) != Z_STREAM_END)
         goto err;
 
     ats->data_sz = zstr.total_out;
+    memcpy(ats->data, tmp, zstr.total_out);
 
     inflateEnd(&zstr);
 
