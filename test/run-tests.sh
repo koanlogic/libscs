@@ -39,6 +39,21 @@ test3 ()
         > /dev/null
 }
 
+test4 ()
+{
+    "${SCSBIN}" -A \
+                -d \
+                -z \
+                -f book.json \
+                -o book-decoded.json
+        > /dev/null
+
+    diff book.json book-decoded.json 
+    ret=$?
+    [ $ret = 0 ] && rm -f book-decoded.json
+    return $ret
+}
+
 #
 # Run tests.
 #
@@ -46,6 +61,7 @@ test0 || err "test0"
 test1 || err "test1"
 test2 || err "test2"
 test3 || err "test3"
+test4 || err "test4"
 # ...
 
 echo ">> all tests ok"
