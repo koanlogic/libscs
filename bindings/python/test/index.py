@@ -25,7 +25,7 @@ def index(req):
         page="""
 <html>
 <body>
-<h1>SCS Client-Side Sesssions Test Page</h1>
+<h1>SCS Client-Side Sessions Test Page</h1>
 <br>
 <b>variable name</b>: %s<br>
 <b>variable value</b>: %s<br>
