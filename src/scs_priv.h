@@ -26,7 +26,7 @@
 #define COMP_LENGTH(inlen)          \
     ((inlen) + 6 + (5 * (((inlen) % 16384) + 1)))
 
-/** 
+/* 
  * Placeholder for keyset configuration data.
  */
 typedef struct scs_keyset_s
@@ -52,7 +52,7 @@ typedef struct scs_keyset_s
     int comp;
 } scs_keyset_t;
 
-/**
+/*
  * SCS protocol atoms in raw and Base-64 encoded form.
  */
 typedef struct scs_atoms_s
@@ -65,14 +65,17 @@ typedef struct scs_atoms_s
     size_t tag_sz;
     char b64_tag[BASE64_LENGTH(SCS_TAG_MAX) + 1];
 
-    char atime[SCS_ATIME_MAX];
-    char b64_atime[BASE64_LENGTH(SCS_ATIME_MAX) + 1];
+    char tstamp[SCS_TSTAMP_MAX];
+    char b64_tstamp[BASE64_LENGTH(SCS_TSTAMP_MAX) + 1];
 
     uint8_t iv[SCS_IV_MAX];
     char b64_iv[BASE64_LENGTH(SCS_IV_MAX) + 1];
 
     char b64_tid[BASE64_LENGTH(SCS_TID_MAX) + 1];
 } scs_atoms_t;
+
+/* Refresh modes. */
+enum { SCS_REFRESH_MANUAL = 0, SCS_REFRESH_AUTO };
 
 /* 
  * SCS runtime context.
@@ -84,7 +87,8 @@ struct scs_s
     char estr[256];
 
     /* Current and previously active keyset. */
-    struct scs_keyset_s cur_keyset, prev_keyset;
+    struct scs_keyset_s cur_keyset; 
+    struct scs_keyset_s prev_keyset;
 
     time_t session_max_age;
 

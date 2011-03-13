@@ -68,7 +68,7 @@ static int what_time_is_it (scs_t *ctx, time_t *pnow);
 
 /* Encode support. */
 static int get_random_iv (scs_t *ctx);
-static int get_atime (scs_t *ctx);
+static int get_tstamp (scs_t *ctx);
 static int optional_deflate (scs_t *ctx, const uint8_t *st, size_t st_sz);
 static int do_deflate (scs_t *ctx, const uint8_t *state, size_t state_sz);
 static int encrypt_state (scs_t *ctx);
@@ -79,11 +79,11 @@ static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX]);
 /* Decode support. */
 static scs_keyset_t *retr_keyset (scs_t *ctx);
 static int attach_atoms (scs_t *ctx, const char *b64_data, 
-        const char *b64_atime, const char *b64_tid, const char *b64_iv, 
+        const char *b64_tstamp, const char *b64_tid, const char *b64_iv, 
         const char *b64_tag);
 static int decode_atoms (scs_t *ctx, scs_keyset_t *ks);
 static int tags_match (scs_t *ctx, const char *tag);
-static int atime_ok (scs_t *ctx);
+static int tstamp_ok (scs_t *ctx);
 static int optional_inflate (scs_t *ctx, scs_keyset_t *ks);
 static int decrypt_state (scs_t *ctx, scs_keyset_t *ks);
 static int remove_pad (scs_t *ctx);
@@ -117,18 +117,22 @@ static int update_last_refresh (scs_t *ctx, time_t now);
 /**
  *  \brief  Encode plain cookie-value to an SCS cookie-value.
  *
- *  Given the supplied \p state blob return the SCS cookie string
- *  into the \p cookie char buffer.  The \p cookie must be at least
- *  SCS_COOKIE_MAX bytes long and pre-allocated by the caller.
- *  When an error occurs \c NULL is returned and the supplied \p ctx 
- *  can be inspected for failure cause -- \sa scs_err function.
+ *  Given the supplied \p state blob (of length \p state_sz), return the SCS
+ *  cookie value string into the \p cookie char buffer.  The \p cookie must 
+ *  be at least ::SCS_COOKIE_MAX bytes long and pre-allocated by the caller.
+ *  When an error occurs \c NULL is returned and the supplied \p ctx can be 
+ *  inspected via ::scs_err function for failure cause.
  *
- *  \param  ctx         TODO
- *  \param  state       TODO
- *  \param  state_sz    TODO
- *  \param  cookie      TODO
+ *  \param  ctx         An already initialized SCS context.
+ *  \param  state       The plain text state data that is to be put into the 
+ *                      SCS cookie.
+ *  \param  state_sz    \p state size in bytes (in case state is a 
+ *                      NUL-terminated C string, supply its strlen.)
+ *  \param  cookie      Pointer to a pre-allocated buffer of at least 
+ *                      ::SCS_COOKIE_MAX bytes.
  *
- *  \return TODO
+ *  \return The encoded SCS cookie-value string on success, \c NULL in case
+ *          an error occurred.
  */
 const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
         char cookie[SCS_COOKIE_MAX])
@@ -146,16 +150,16 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     reset_atoms(ats);
 
     /*  iv = rand()
-     *  atime = now()
+     *  tstamp = now()
      *  Trans = (compression enabled) ? Deflate : Id
      *  state' = Trans(state)
      *  data = E_k(state')
-     *  tag = HMAC_h(b64(data) || "|" || b64(atime) || "|" ||
+     *  tag = HMAC_h(b64(data) || "|" || b64(tstamp) || "|" ||
      *               b64(tid)  || "|" || b64(iv))
      *  scs_cookie = 
-     *      "b64(data) '|' b64(atime) '|' b64(tid) '|' b64(iv) '|' b64(tag)" */
+     *      "b64(data) '|' b64(tstamp) '|' b64(tid) '|' b64(iv) '|' b64(tag)" */
     if (get_random_iv(ctx) 
-            || get_atime(ctx) 
+            || get_tstamp(ctx) 
             || optional_deflate(ctx, state, state_sz) 
             || encrypt_state(ctx) 
             || create_tag(ctx, ks, !skip_atoms_encoding))
@@ -168,9 +172,20 @@ const char *scs_encode (scs_t *ctx, const uint8_t *state, size_t state_sz,
     return do_cookie(ctx, cookie);
 }
 
-/** \brief  Decode the supplied SCS \p cookie string.  
- *          If verification is successful, the embedded state blob is returned
- *          to the caller whose length is found at \p *pstate_sz. */
+/**
+ *  \brief  Decode the supplied SCS \p cookie-value.
+ *
+ *  Decode the supplied SCS \p cookie string.  If verification is successful, 
+ *  the embedded state blob, whose length is found at \p *pstate_sz, is 
+ *  returned to the caller.
+ *
+ *  \param  ctx         An already initialized SCS context.
+ *  \param  cookie      The SCS cookie-value to be decoded.
+ *  \param  pstate_sz   The size in bytes of the decoded state blob as a 
+ *                      return argument.
+ *
+ *  \return The decoded state blob on success, \c NULL if an error occurred.
+ */
 void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
 {
     char tag[BASE64_LENGTH(SCS_TAG_MAX) + 1];
@@ -191,13 +206,23 @@ void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
 }
 
 /**
- *  \brief  Return an SCS context initialized with the supplied tid, keyset,
- *          cipherset, compression and max age parameters.
- *          Note that the \p tid string must be at least 64 bytes long: longer
- *          strings will be silently truncated.
- *          In case no deflate library has been found during the configuration
- *          stage, the \p comp value will be silently ignored (i.e. always set 
- *          to false). 
+ *  \brief  Initialize a new SCS context.
+ *
+ *  Return a new SCS context in the result argument \p ps.  The context is 
+ *  initialized with the supplied \p tid, keyset (\p key and \p hkey),
+ *  \p cipherset, compression (\p comp) and \p session_max_age parameters.
+ *  In case zlib support is disabled, the \p comp value will be silently 
+ *  ignored (i.e. always set to false).
+ *
+ *  \param  tid             ...
+ *  \param  cipherset       ...
+ *  \param  key             ...
+ *  \param  hkey            ...
+ *  \param  comp            ...
+ *  \param  session_max_age ...
+ *  \param  ps              ...
+ *
+ *  \return ::SCS_OK on success, one of the ::scs_err_t values on error.
  */ 
 int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key, 
         const uint8_t *hkey, int comp, time_t session_max_age, scs_t **ps)
@@ -253,17 +278,28 @@ err:
 
 /** 
  *  \brief  Dispose memory resources allocated to the supplied SCS context.
+ *
+ *  ...
+ *
+ *  \param  ctx ...
+ *
+ *  \return Nothing.
  */
-void scs_term (scs_t *s)
+void scs_term (scs_t *ctx)
 {
-    memset(s, 0, sizeof *s);
-    free(s);
+    memset(ctx, 0, sizeof *ctx);
+    free(ctx);
     D.term();
 
     return;
 }
 
-/** \brief  Return last error string. */
+/** \brief  Return last error string. 
+ *
+ *  ...
+ *
+ *  \param  ctx ...
+ */
 const char *scs_err (scs_t *ctx) 
 {
     return ctx->estr;
@@ -271,6 +307,15 @@ const char *scs_err (scs_t *ctx)
 
 /**
  *  Refresh current keyset with the supplied keying material.
+ *
+ *  ...
+ *
+ *  \param  ctx     ...
+ *  \param  new_tid ...
+ *  \param  key     ...
+ *  \param  hkey    ...
+ *
+ *  \return \c 0 on success, \c -1 if an error occurs.
  */ 
 int scs_refresh_keyset (scs_t *ctx, const char *new_tid, const uint8_t *key, 
         const uint8_t *hkey)
@@ -310,6 +355,14 @@ recover:
 
 /**
  *  \brief  Set auto-refresh policy parameters.
+ *
+ *  ...
+ *
+ *  \param  ctx             ...
+ *  \param  refresh_freq    ...
+ *  \param  expiry          ...
+ *
+ *  \return \0 on success.
  */ 
 int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
 {
@@ -328,7 +381,7 @@ int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
 
 /*
  * Create the SCS cookie string given the computed atoms:
- *      scs_cookie = "b64(data)'|'b64(atime)'|'b64(tid)'|'b64(iv)'|'b64(tag)"
+ *      scs_cookie = "b64(data)'|'b64(tstamp)'|'b64(tid)'|'b64(iv)'|'b64(tag)"
  */
 static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
 {
@@ -336,7 +389,7 @@ static const char *do_cookie (scs_t *ctx, char cookie[SCS_COOKIE_MAX])
     scs_atoms_t *ats = &ctx->atoms;
 
     rc = snprintf(cookie, SCS_COOKIE_MAX, "%s|%s|%s|%s|%s", ats->b64_data, 
-            ats->b64_atime, ats->b64_tid, ats->b64_iv, ats->b64_tag);
+            ats->b64_tstamp, ats->b64_tid, ats->b64_iv, ats->b64_tag);
 
     if (rc >= SCS_COOKIE_MAX)
     {
@@ -355,7 +408,7 @@ static int split_cookie (scs_t *ctx, const char *cookie,
 {
     size_t n;
     char cp[SCS_COOKIE_MAX] = { '\0' }, *pcp = &cp[0];
-    enum { DATA = 0, ATIME, TID, IV, TAG, NUM_ATOMS };
+    enum { DATA = 0, TSTAMP, TID, IV, TAG, NUM_ATOMS };
     char *atoms[NUM_ATOMS + 1], **ap;
 
     /* Make a copy that we can freely clobber with strsep(). */
@@ -394,7 +447,7 @@ static int split_cookie (scs_t *ctx, const char *cookie,
     (void) strlcpy(tag, atoms[TAG], BASE64_LENGTH(SCS_TAG_MAX) + 1);
 
     /* Attach atoms to context. */
-    return attach_atoms(ctx, atoms[DATA], atoms[ATIME], atoms[TID], 
+    return attach_atoms(ctx, atoms[DATA], atoms[TSTAMP], atoms[TID], 
                         atoms[IV], atoms[TAG]);
 }
 
@@ -407,12 +460,12 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
 
     /* 1.  If (tid is available)
      * 2.      data' = d($SCS_DATA)
-     *         atime' = d($SCS_ATIME)
+     *         tstamp' = d($SCS_TSTAMP)
      *         tid' = d($SCS_TID)
      *         iv' = d($SCS_IV)
      *         tag' = d($SCS_AUTHTAG)
-     * 3.     tag = HMAC(<data'>||<atime'>||<tid'>||<iv'>)
-     * 4.     If (tag == tag' && NOW - atime' <= session_max_age)
+     * 3.     tag = HMAC(<data'>||<tstamp'>||<tid'>||<iv'>)
+     * 4.     If (tag == tag' && NOW - tstamp' <= session_max_age)
      * 5.         state = Uncomp(Dec(data'))
      * 6.     Else discard PDU
      * 7.  Else discard PDU        */
@@ -420,7 +473,7 @@ static void *verify (scs_t *ctx, const char *tag, size_t *pstate_sz)
             || decode_atoms(ctx, ks)
             || create_tag(ctx, ks, skip_atoms_encoding)
             || tags_match(ctx, tag)
-            || atime_ok(ctx)
+            || tstamp_ok(ctx)
             || decrypt_state(ctx, ks)
             || optional_inflate(ctx, ks))
     {
@@ -444,21 +497,21 @@ static int get_random_iv (scs_t *ctx)
 }
 
 /* Retrieve current time in seconds since UNIX epoch. */
-static int get_atime (scs_t *ctx)
+static int get_tstamp (scs_t *ctx)
 {
-    time_t atime;
+    time_t tstamp;
     scs_atoms_t *ats = &ctx->atoms;
 
     /* Get current timestamp. */
-    if (what_time_is_it(ctx, &atime))
+    if (what_time_is_it(ctx, &tstamp))
         return -1;
 
-    /* Get string representation of atime which will be used later on when 
+    /* Get string representation of tstamp which will be used later on when 
      * creating the authentication tag. */
-    if (snprintf(ats->atime, sizeof ats->atime, 
-                "%"PRIdMAX, (intmax_t) atime) >= (int) sizeof ats->atime)
+    if (snprintf(ats->tstamp, sizeof ats->tstamp, 
+                "%"PRIdMAX, (intmax_t) tstamp) >= (int) sizeof ats->tstamp)
     {
-        scs_set_error(ctx, SCS_ERR_IMPL, "inflate SCS_ATIME_MAX !");
+        scs_set_error(ctx, SCS_ERR_IMPL, "inflate SCS_TSTAMP_MAX !");
         return -1;
     }
 
@@ -508,11 +561,11 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
             BASE64_LENGTH(ats->data_sz)
         },
         { 
-            "SCS ATIME",
-            (uint8_t *) ats->atime,
-            ats->b64_atime,
-            strlen(ats->atime),
-            sizeof(ats->b64_atime)
+            "SCS TSTAMP",
+            (uint8_t *) ats->tstamp,
+            ats->b64_tstamp,
+            strlen(ats->tstamp),
+            sizeof(ats->b64_tstamp)
         },
         {
             "SCS TID",
@@ -721,7 +774,7 @@ static scs_keyset_t *retr_keyset (scs_t *ctx)
 
 /* Possible truncation will be detected in some later processing stage. */
 static int attach_atoms (scs_t *ctx, const char *b64_data, 
-        const char *b64_atime, const char *b64_tid, const char *b64_iv, 
+        const char *b64_tstamp, const char *b64_tid, const char *b64_iv, 
         const char *b64_tag)
 {
     size_t i;
@@ -740,11 +793,11 @@ static int attach_atoms (scs_t *ctx, const char *b64_data,
             strlen(b64_data) + 1
         },
         {
-            "SCS ATIME",
-            b64_atime,
-            ats->b64_atime,
-            sizeof(ats->b64_atime),
-            strlen(b64_atime) + 1
+            "SCS TSTAMP",
+            b64_tstamp,
+            ats->b64_tstamp,
+            sizeof(ats->b64_tstamp),
+            strlen(b64_tstamp) + 1
         },
         {
             "SCS TID",
@@ -787,7 +840,7 @@ static int attach_atoms (scs_t *ctx, const char *b64_data,
 static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
 {
     scs_atoms_t *ats = &ctx->atoms;
-    size_t i, atime_sz = sizeof(ats->atime), iv_sz = ks->block_sz;
+    size_t i, tstamp_sz = sizeof(ats->tstamp), iv_sz = ks->block_sz;
     enum { NUM_ATOMS = 4 };
     struct {
         const char *id;
@@ -804,11 +857,11 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
             strlen(ats->b64_data)
         },
         {
-            "SCS ATIME",
-            (uint8_t *) ats->atime,
-            &atime_sz,
-            ats->b64_atime,
-            strlen(ats->b64_atime)
+            "SCS TSTAMP",
+            (uint8_t *) ats->tstamp,
+            &tstamp_sz,
+            ats->b64_tstamp,
+            strlen(ats->b64_tstamp)
         },
         {
             "SCS IV",
@@ -835,8 +888,8 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
         }
     }
 
-    /* Terminate atime string. */
-    ats->atime[atime_sz] = '\0';
+    /* Terminate tstamp string. */
+    ats->tstamp[tstamp_sz] = '\0';
 
     return 0;
 }
@@ -854,19 +907,19 @@ static int tags_match (scs_t *ctx, const char *tag)
     return -1;
 }
 
-static int atime_ok (scs_t *ctx)
+static int tstamp_ok (scs_t *ctx)
 {
-    time_t now, atime, delta;
+    time_t now, tstamp, delta;
     scs_atoms_t *ats = &ctx->atoms;
 
     /* Get current timestamp. */
     if (what_time_is_it(ctx, &now))
         return -1;
 
-    /* Get time_t representation of atime (XXX do it better). */
-    atime = (time_t) atoi(ats->atime);
+    /* Get time_t representation of tstamp (XXX do it better). */
+    tstamp = (time_t) atoi(ats->tstamp);
 
-    if ((delta = (now - atime)) <= ctx->session_max_age)
+    if ((delta = (now - tstamp)) <= ctx->session_max_age)
         return 0;
 
     scs_set_error(ctx, SCS_ERR_SESSION_EXPIRED, 
