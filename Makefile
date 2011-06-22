@@ -2,12 +2,13 @@ include common.mk
 include Makefile.conf
 
 SUBDIR = src
-SUBDIR += test
-SUBDIR += include
 
 ifdef HAVE_DOXYGEN
 SUBDIR += doxy
 endif
+
+SUBDIR += include
+SUBDIR += test
 
 include subdir.mk
 
