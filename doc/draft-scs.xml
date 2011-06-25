@@ -844,12 +844,23 @@ T  ----------------|---------------------| {no longer valid}
                  title="Session Fixation">
 
           <t>Session fixation vulnerabilities <xref target="Kolsec"></xref>
-          are not addressed by SCS.  A more sophisticated protocol involving
-          an active participation by the UA in the SCS cookie manipulation
-          would be needed, e.g. some form of challange-response exchange 
-          initiated by the Server on the HTTP response and replied by the UA 
-          on the next chained HTTP request.  Unfortunately the present 
-          specification gives the UA a completely passive role.</t>
+          are not addressed by SCS.</t>
+
+          <t>A more sophisticated protocol involving an active participation 
+          by the UA in the SCS cookie manipulation would be needed: e.g. some
+          form of challange-response exchange initiated by the Server on the 
+          HTTP response and replied by the UA on the next chained HTTP 
+          request.</t>
+
+          <t>Unfortunately the present specification which bases on 
+          <xref target="RFC6265" /> sees the UA as a completely passive 
+          character, whose role is to blindly paste the cookie value set 
+          by the Server.</t>
+
+          <t>Nevertheless, the SCS cookies wrapping mechanism may be used 
+          in the future as a building block for a more robust HTTP state 
+          management protocol.</t>
+
         </section>
 
       </section>
