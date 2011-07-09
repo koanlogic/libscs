@@ -260,7 +260,8 @@ AUTHTAG          = 4*base64-character
 
           <t>Such an expiration error may be used to force user logout from 
           an SCS cookie based session, or hooked in the web application logics
-          to the display of a form asking re-validation of user credentials.</t>
+          to the display of a HTML form asking re-validation of user 
+          credentials.</t>
         </section>
 
         <!-- end of ATIME -->
