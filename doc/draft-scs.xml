@@ -257,6 +257,10 @@ AUTHTAG          = 4*base64-character
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
+
+          <t>Such an expiration error may be used to force user logout from 
+          an SCS cookie based session, or hooked in the web application logics
+          to the display of a form asking re-validation of user credentials.</t>
         </section>
 
         <!-- end of ATIME -->
