@@ -848,7 +848,7 @@ T  ----------------|---------------------| {no longer valid}
         <section anchor="session_fixation"
                  title="Session Fixation">
 
-          <t>Session fixation vulnerabilities <xref target="Kolsec"></xref>
+          <t>Session fixation vulnerabilities <xref target="Kolsec" />
           are not addressed by SCS.</t>
 
           <t>A more sophisticated protocol involving an active participation 
@@ -955,10 +955,63 @@ T  ----------------|---------------------| {no longer valid}
       </reference>
     </references>
 
-    <section anchor="ref-impl" title="Reference Implementation">
-      <t>A reference implementation (at present in early stage) of the SCS 
-      protocol can be found at 
+
+    <section anchor="examples" title="Examples">
+      <t>The examples in this section have been created using the 'scs' test 
+      tool bundled with LibSCS, a free and opensource reference implementation 
+      of the SCS protocol that can be found at 
       <eref target="http://github.com/koanlogic/libscs"></eref>.</t>
+
+      <section anchor="no_compression" title="No Compression">
+
+
+        <t>The following parameters:
+        <cref>Test CREF inline comment</cref>
+        <list style="symbols">
+          <t>Plain text cookie: "a state string"</t>
+          <t>AES-CBC-128 key: "cipher key"</t>
+          <t>HMAC-SHA1 key: "hmac key"</t>
+          <t>TID: "tid"</t>
+          <t>ATIME: 1323898800</t>
+          <t>IV: \xd1\x02\xfc\xca\xbf\x05\x03\xb1\xf4\x4f\x1f\xfd\x6d\x12\x5c\x66</t>
+        </list></t>
+
+        <t>produce the following tokens:
+        <list style="symbols">
+          <t>DATA: GJRz3N0cuPKTumCqjtVjgw==</t>
+          <t>ATIME: MTMyMzg5ODgwMA==</t>
+          <t>TID: dGlk</t>
+          <t>IV: 0QL8yr8FA7H0Tx/9bRJcZg==</t>
+          <t>AUTHTAG: ktKOYXnTjrCzXgxGH//dWXUZAJ8=</t>
+        </list></t>
+      </section>
+
+      <section anchor="compression" title="Use Compression">
+        <t>The same parameters as above, except ATIME and IV:
+        <list style="symbols">
+          <t>Plain text cookie: "a state string"</t>
+          <t>AES-CBC-128 key: "cipher key"</t>
+          <t>HMAC-SHA1 key: "hmac key"</t>
+          <t>TID: "tid"</t>
+          <t>ATIME: 1323899388</t>
+          <t>IV:\x72\x6f\x00\x2e\x4c\xf3\x6d\xfd\xf1\x1f\x92\xcf\x12\x8e\xe7\x8b</t>
+        </list></t>
+
+        <t>produce the following tokens:
+        <list style="symbols">
+          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8=</t>
+          <t>ATIME: MTMyMzg5OTM4OA==</t>
+          <t>TID: dGlk</t>
+          <t>IV: cm8ALkzzbf3xH5LPEo7niw==</t>
+          <t>AUTHTAG: K/rig5ZxGz/aGPQkyAb8JRMcTUY=</t>
+        </list></t>
+
+        <t>In both cases, the resulting SCS cookie is obtained via ordered 
+        concatenation of the produced tokens, as described in 
+        <xref target="sec_pdu_description" />.</t>
+
+      </section>
     </section>
+
   </back>
 </rfc>
