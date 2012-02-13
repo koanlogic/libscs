@@ -1,8 +1,7 @@
-#include <config.h>
-#include <types.h>
-#include <ctc_hmac.h>
-#include <ctc_aes.h>
-#include <random.h>
+#include <cyassl/ctaocrypt/types.h>
+#include <cyassl/ctaocrypt/hmac.h>
+#include <cyassl/ctaocrypt/aes.h>
+#include <cyassl/ctaocrypt/random.h>
 
 int main (void)
 {

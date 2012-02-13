@@ -42,10 +42,8 @@ makl_add_var_mk "LDFLAGS" "\$(LIBZ_LDFLAGS)"
 # We just need the "crypto" side of OpenSSL.
 makl_optional 1 "lib" "openssl" "" "-lcrypto"
 
-# CyaSSL default install goes to /usr/local/cyassl/{include,lib}.
-CYASSL_BASE="/usr/local/cyassl"
-makl_optional 1 "lib" "cyassl" \
-                  "-I${CYASSL_BASE}/include" "-L${CYASSL_BASE}/lib -lcyassl"
+# CyaSSL default install goes to /usr/local{include/cyassl,lib}.
+makl_optional 1 "lib" "cyassl" "" "-lcyassl"
 
 # Binary dependencies (for bindings)
 makl_optional 1 "featx" "swig"
