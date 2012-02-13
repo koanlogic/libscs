@@ -1,9 +1,8 @@
-#include <config.h>
-#include <types.h>
-#include <ctc_hmac.h>
-#include <ctc_aes.h>
-#include <random.h>
-#include <coding.h>
+#include <cyassl/ctaocrypt/types.h>
+#include <cyassl/ctaocrypt/hmac.h>
+#include <cyassl/ctaocrypt/aes.h>
+#include <cyassl/ctaocrypt/random.h>
+#include <cyassl/ctaocrypt/coding.h>
 
 #include "cyassl_drv.h"
 #include "utils.h"
