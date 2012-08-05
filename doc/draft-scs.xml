@@ -87,7 +87,7 @@
       </address>
     </author>
 
-    <date year="2011" />
+    <date year="2012" />
 
     <!-- Meta-data Declarations -->
 
@@ -224,7 +224,7 @@
         each of which is the Base-64 encoding of a specific SCS field, 
         separated by its left and/or right sibling by means of the %x7c ASCII 
         character (i.e. '|'), as follows:
-        <figure>
+        <figure anchor="abnf">
             <artwork align="left"><![CDATA[
 scs-cookie       = scs-cookie-name "=" scs-cookie-value
 scs-cookie-name  = token
@@ -301,14 +301,19 @@ AUTHTAG          = 4*base64-character
 
         <section anchor="sec_scs_tid" title="TID">
           <t>This identifier is equivalent to a SPI in a Data Security SA <xref
-          target="RFC3740"></xref>) and consists of an ASCII string that uniquely
-          identifies the transform set (keys and algorithms) used to generate 
-          this SCS cookie.</t>
+          target="RFC3740"></xref>) and consists of an ASCII string that 
+          uniquely identifies the transform set (keys and algorithms) used to 
+          generate this SCS cookie.</t>
 
           <t>SCS assumes that a key-agreement/distribution mechanism exists
-          for environments in which S consists of multiple servers (a simple 
-          key-refresh in case |S|=1), which provides a unique external 
-          identifier for each transform set shared amongst pool members.</t>
+          for environments in which S consists of multiple servers, which 
+          provides a unique external identifier for each transform set shared 
+          amongst pool members.</t>
+
+          <t>Please note that the said mechanism may safely downgrade to a 
+          periodic key-refresh in case there is one only server in the pool and
+          key is generated in place -- i.e. it is not handled from an external 
+          source.</t>
         </section>
 
         <!-- end of TID -->
@@ -481,26 +486,29 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <figure anchor="fig_inbound_transform">
             <artwork align="center"><![CDATA[
-0.  split_fields(scs-cookie-value)
-1.  tid' := d(e(TID))
-2.  If (tid' is available)
-3.      tag' := d(e(AUTHTAG))
-4.      tag := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
-5.      If (tag = tag')
-6.          atime' := d(e(ATIME))
-7.          If (NOW - atime' <= session_max_age)
-8.              iv' := d(e(IV))
-                data' := d(e(DATA))
-9.              state := Uncomp(Dec(data', iv'))
-10.         Else discard PDU
-11.     Else discard PDU
-12. Else discard PDU
+0.  If (split_fields(scs-cookie-value) == ok)
+1.      tid' := d(e(TID))
+2.      If (tid' is available)
+3.          tag' := d(e(AUTHTAG))
+4.          tag := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
+5.          If (tag = tag')
+6.              atime' := d(e(ATIME))
+7.              If (NOW - atime' <= session_max_age)
+8.                  iv' := d(e(IV))
+                    data' := d(e(DATA))
+9.                  state := Uncomp(Dec(data', iv'))
+10.             Else discard PDU
+11.         Else discard PDU
+12.     Else discard PDU
+13. Else discard PDU
                 ]]></artwork>
           </figure>
 
           <t>First of all, the inbound scs-cookie-value is broken into its
-          component fields (step 0.), and TID is decoded to allow keyset
-          lookup (step 1.).</t>
+          component fields which MUST be exactly 5, and each at least of the
+          minimum length specified in <xref target="abnf" /> (step 0.).
+          In case any of these preliminary checks fails, the PDU is discarded 
+          (step 13.); else TID is decoded to allow keyset lookup (step 1.).</t>
 
           <t>If the cryptographic credentials (encryption and authentication
           algorithms and keys identified by TID) are unavailable (step 12.),
@@ -610,7 +618,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
     <section anchor="sec_key_management"
              title="Key Management and Session State">
-      <t>This specification provides some common recommendations and praxis
+      <t>This specification provides some common recommendations and practices
       relevant to cryptographic key management.</t>
 
       <t>In the following, the term 'key' references both encryption and HMAC
@@ -710,8 +718,8 @@ T  ----------------|---------------------| {no longer valid}
     </section>
 
     <section anchor="sec_ack" title="Acknowledgements">
-      <t>We would like to thank David Wagner and Lorenzo Cavallaro for their
-      valuable feedback on this document.</t>
+      <t>We would like to thank Jim Schaad, David Wagner and Lorenzo Cavallaro 
+      for their valuable feedback on this document.</t>
     </section>
 
     <section anchor="sec_iana" title="IANA Considerations">
