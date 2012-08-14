@@ -19,12 +19,12 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-03"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-04"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
 
-    <author fullname="Stefano Barbato" initials="S.B." surname="Barbato">
+    <author fullname="Stefano Barbato" initials="S." surname="Barbato">
       <organization>KoanLogic</organization>
 
       <address>
@@ -44,7 +44,7 @@
       </address>
     </author>
 
-    <author fullname="Steven Dorigotti" initials="S.D." surname="Dorigotti">
+    <author fullname="Steven Dorigotti" initials="S." surname="Dorigotti">
       <organization>KoanLogic</organization>
 
       <address>
@@ -64,7 +64,7 @@
       </address>
     </author>
 
-    <author fullname="Thomas Fossati" initials="T.F." role="editor"
+    <author fullname="Thomas Fossati" initials="T." role="editor"
             surname="Fossati">
       <organization>KoanLogic</organization>
 
@@ -117,6 +117,12 @@
       applications with high availability or load balancing requirements which 
       would prefer to handle application state without the need to synchronize 
       the pool through shared storage or peering.</t>
+
+      <t>Another noteworthy application scenario is represented by the
+      distribution of authorized web content (e.g. by CDNs), where an SCS token
+      can be used, either in a cookie or embedded in the URI, to provide
+      evidence of the entitlement to access the associated resource by the
+      requesting user agent.</t>
 
       <t>Nevertheless, its security properties allow SCS to be used whenever
       the privacy and integrity of cookies is a concern, by paying an 
@@ -419,14 +425,13 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
         <!-- end Compression -->
 
         <section anchor="sec_cookie_encoding" title="Cookie Encoding">
-          <t><xref target="RFC4648">Base-64</xref> is used for
-          encoding/decoding of SCS cookie values. It is 
-          <!--
-          quite efficient in terms of space occupation, is 
-          -->
-          very wide-spread, and falls smoothly into
-          the encoding rules defined in Section 4.1.1 of <xref
-          target="RFC6265"></xref>.</t>
+          <t>SCS cookie values MUST be encoded using the URL and filename safe
+          alphabet (i.e. base64url) defined in section 5 of <xref
+          target="RFC4648">Base-64</xref>.  This encoding is very wide-spread,
+          falls smoothly into the encoding rules defined in Section 4.1.1 of
+          <xref target="RFC6265"></xref>, and can be safely used to supply
+          SCS based authorization tokens within an URI (e.g. in a query string
+          or straight into a path segment).</t>
         </section>
 
         <!-- end Cookie Encoding -->
@@ -446,7 +451,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           </figure>
 
           <t>A new Initialization Vector is randomly picked (step 1.).
-          As previouslty mentioned (<xref target="sec_scs_iv" />) this step is
+          As previously mentioned (<xref target="sec_scs_iv" />) this step is
           necessary to avoid providing correlation information to an
           attacker.</t>
 
@@ -460,7 +465,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           synchronized to avoid errors in the calculation of session expiry.</t>
 
           <t>The plain text cookie value is then compressed (if needed) and
-          encrypted by using the keyset identified by TID (step 3.).</t>
+          encrypted by using the key-set identified by TID (step 3.).</t>
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with as many padding bytes of
@@ -470,7 +475,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           <t>Then the authentication tag, which encompasses each SCS field
           (along with lengths, and relative positions) is computed by HMAC'ing
           the "|"-separated concatenation of their base64 representations using
-          the keyset identified by TID (step 4.).</t>
+          the key-set identified by TID (step 4.).</t>
 
           <t>Finally the SCS cookie-value is created as follows:
           <list style="empty">
@@ -482,20 +487,20 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
         <section anchor="sec_inbound_transform" title="Inbound Transform">
           <t>The inbound transformation is described in <xref
-          target="fig_inbound_transform"></xref>.</t>
+          target="fig_inbound_transform"></xref>.  In it, each of the 'e'-prefixed names has to be interpreted as the base64url encoded value of the corresponding SCS field.</t>
 
           <figure anchor="fig_inbound_transform">
             <artwork align="center"><![CDATA[
 0.  If (split_fields(scs-cookie-value) == ok)
-1.      tid' := d(e(TID))
+1.      tid' := d(eTID)
 2.      If (tid' is available)
-3.          tag' := d(e(AUTHTAG))
-4.          tag := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
+3.          tag' := d(eAUTHTAG)
+4.          tag := HMAC(eDATA||eATIME||eTID||eIV)
 5.          If (tag = tag')
-6.              atime' := d(e(ATIME))
+6.              atime' := d(eATIME)
 7.              If (NOW - atime' <= session_max_age)
-8.                  iv' := d(e(IV))
-                    data' := d(e(DATA))
+8.                  iv' := d(eIV)
+                    data' := d(eDATA)
 9.                  state := Uncomp(Dec(data', iv'))
 10.             Else discard PDU
 11.         Else discard PDU
@@ -508,7 +513,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           component fields which MUST be exactly 5, and each at least of the
           minimum length specified in <xref target="abnf" /> (step 0.).
           In case any of these preliminary checks fails, the PDU is discarded 
-          (step 13.); else TID is decoded to allow keyset lookup (step 1.).</t>
+          (step 13.); else TID is decoded to allow key-set lookup (step 1.).</t>
 
           <t>If the cryptographic credentials (encryption and authentication
           algorithms and keys identified by TID) are unavailable (step 12.),
@@ -519,12 +524,12 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           a server pool node desynchronizes, or in case of a key compromise 
           that forces the invalidation of all current TID's, etc.</t>
 
-          <t>When a valid keyset is found (step 2.), the AUTHTAG field is
+          <t>When a valid key-set is found (step 2.), the AUTHTAG field is
           decoded (step 3.) and the (still) encoded DATA, ATIME, TID and IV 
           fields are supplied to the primitive that computes the authentication
           tag (step 4.).</t>
 
-          <t>If the tag computed using the local keyset matches the one carried
+          <t>If the tag computed using the local key-set matches the one carried
           by the supplied SCS cookie, we can be confident that the cookie
           carries authentic material; otherwise the SCS cookie is discarded
           (step 11.).</t>
@@ -881,7 +886,7 @@ T  ----------------|---------------------| {no longer valid}
       <section anchor="sec_advantages"
                title="Advantages of SCS over Server-side Sessions">
 
-        <t>Note that all the abovementioned vulnerabilities also apply to
+        <t>Note that all the above-mentioned vulnerabilities also apply to
         plain cookies, making SCS at least as secure, but there are a few 
         good reasons to consider its security level enhanced.</t>
 
@@ -896,7 +901,7 @@ T  ----------------|---------------------| {no longer valid}
         credentials).</t>
 
         <t>More generally no slicing nor altering operations can be done over
-        an SCS PDU without controlling the cryptographic keyset.</t>
+        an SCS PDU without controlling the cryptographic key-set.</t>
       </section>
     </section>
   </middle>
@@ -904,25 +909,17 @@ T  ----------------|---------------------| {no longer valid}
   <back>
     <references title="Normative References">
       &RFC2119;
-
       &RFC4648;
-
       &RFC1951;
-
       &RFC4086;
-
       &RFC2104;
-
       &RFC5652;
-
       &RFC6265;
     </references>
 
     <references title="Informative References">
       &RFC5246;
-
       &RFC3740;
-
       &RFC4301;
 
       <reference anchor="Bellare">
@@ -972,9 +969,7 @@ T  ----------------|---------------------| {no longer valid}
 
       <section anchor="no_compression" title="No Compression">
 
-
         <t>The following parameters:
-        <cref>Test CREF inline comment</cref>
         <list style="symbols">
           <t>Plain text cookie: "a state string"</t>
           <t>AES-CBC-128 key: "cipher key"</t>
@@ -986,11 +981,11 @@ T  ----------------|---------------------| {no longer valid}
 
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: GJRz3N0cuPKTumCqjtVjgw==</t>
-          <t>ATIME: MTMyMzg5ODgwMA==</t>
+          <t>DATA: GJRz3N0cuPKTumCqjtVjgw%3D%3D</t>
+          <t>ATIME: MTMyMzg5ODgwMA%3D%3D</t>
           <t>TID: dGlk</t>
-          <t>IV: 0QL8yr8FA7H0Tx/9bRJcZg==</t>
-          <t>AUTHTAG: ktKOYXnTjrCzXgxGH//dWXUZAJ8=</t>
+          <t>IV: 0QL8yr8FA7H0Tx_9bRJcZg%3D%3D</t>
+          <t>AUTHTAG: ktKOYXnTjrCzXgxGH__dWXUZAJ8%3D</t>
         </list></t>
       </section>
 
@@ -1004,20 +999,17 @@ T  ----------------|---------------------| {no longer valid}
           <t>ATIME: 1323899388</t>
           <t>IV:\x72\x6f\x00\x2e\x4c\xf3\x6d\xfd\xf1\x1f\x92\xcf\x12\x8e\xe7\x8b</t>
         </list></t>
-
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8=</t>
-          <t>ATIME: MTMyMzg5OTM4OA==</t>
+          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8%3D</t>
+          <t>ATIME: MTMyMzg5OTM4OA%3D%3D</t>
           <t>TID: dGlk</t>
-          <t>IV: cm8ALkzzbf3xH5LPEo7niw==</t>
-          <t>AUTHTAG: K/rig5ZxGz/aGPQkyAb8JRMcTUY=</t>
+          <t>IV: cm8ALkzzbf3xH5LPEo7niw%3D%3D</t>
+          <t>AUTHTAG: K_rig5ZxGz_aGPQkyAb8JRMcTUY%3D</t>
         </list></t>
-
         <t>In both cases, the resulting SCS cookie is obtained via ordered 
         concatenation of the produced tokens, as described in 
         <xref target="sec_pdu_description" />.</t>
-
       </section>
     </section>
 
