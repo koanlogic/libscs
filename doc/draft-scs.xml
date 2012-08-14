@@ -487,7 +487,9 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
         <section anchor="sec_inbound_transform" title="Inbound Transform">
           <t>The inbound transformation is described in <xref
-          target="fig_inbound_transform"></xref>.  In it, each of the 'e'-prefixed names has to be interpreted as the base64url encoded value of the corresponding SCS field.</t>
+          target="fig_inbound_transform"></xref>.  In it, each of the
+          'e'-prefixed names has to be interpreted as the base64url encoded
+          value of the corresponding SCS field.</t>
 
           <figure anchor="fig_inbound_transform">
             <artwork align="center"><![CDATA[
