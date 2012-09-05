@@ -588,7 +588,8 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     {
         for (i = 0; i < NUM_ATOMS; ++i)
         {
-            if (base64_encode(A[i].raw, A[i].raw_sz, A[i].enc, A[i].enc_sz))
+            if (base64url_encode(A[i].raw, A[i].raw_sz,
+                        A[i].enc, &A[i].enc_sz))
             {
                 scs_set_error(ctx, SCS_ERR_ENCODE, "%s encode failed", A[i].id);
                 return -1;
@@ -600,8 +601,10 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     if (D.tag(ctx, ks))
         return -1;
 
+    size_t b64_tag = sizeof ats->b64_tag;
+
     /* Base-64 encode the auth tag. */
-    if (base64_encode(ats->tag, ats->tag_sz, ats->b64_tag, sizeof ats->b64_tag))
+    if (base64url_encode(ats->tag, ats->tag_sz, ats->b64_tag, &b64_tag))
     {
         scs_set_error(ctx, SCS_ERR_ENCODE, "tag encode failed", A[i].id);
         return -1;
@@ -748,7 +751,7 @@ static scs_keyset_t *retr_keyset (scs_t *ctx)
     size_t raw_tid_len = sizeof raw_tid - 1;
 
     /* Make sure we have room for the terminating NUL char. */
-    if (base64_decode(ats->b64_tid, strlen(ats->b64_tid), 
+    if (base64url_decode(ats->b64_tid, strlen(ats->b64_tid), 
                 (uint8_t *) raw_tid, &raw_tid_len))
     {
         scs_set_error(ctx, SCS_ERR_DECODE, "Base-64 decoding of tid failed");
@@ -881,7 +884,7 @@ static int decode_atoms (scs_t *ctx, scs_keyset_t *ks)
 
     for (i = 0; i < NUM_ATOMS; ++i)
     {
-        if (base64_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
+        if (base64url_decode(A[i].enc, A[i].enc_sz, A[i].raw, A[i].raw_sz))
         {
             scs_set_error(ctx, SCS_ERR_DECODE, "%s decoding failed", A[i].id);
             return -1;

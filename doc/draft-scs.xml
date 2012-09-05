@@ -19,7 +19,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-04"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-05"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -235,11 +235,11 @@
 scs-cookie       = scs-cookie-name "=" scs-cookie-value
 scs-cookie-name  = token
 scs-cookie-value = DATA "|" ATIME "|" TID "|" IV "|" AUTHTAG
-DATA             = 4*base64-character
-ATIME            = 4*base64-character
-TID              = 4*base64-character
-IV               = 4*base64-character
-AUTHTAG          = 4*base64-character
+DATA             = 1*base64url-character
+ATIME            = 1*base64url-character
+TID              = 1*base64url-character
+IV               = 1*base64url-character
+AUTHTAG          = 1*base64url-character
             ]]></artwork>
         </figure>
         </t>
@@ -337,13 +337,13 @@ AUTHTAG          = 4*base64-character
 
         <section anchor="sec_scs_authtag" title="AUTHTAG">
           <t>Authentication tag based on the concatenation of DATA, ATIME,
-          TID and IV fields encoded in Base-64, framed by the "|" separator:
+          TID and IV fields base64url encoded, framed by the "|" separator:
           <figure>
             <artwork align="left"><![CDATA[
-AUTHTAG = HMAC(base64(DATA)  || "|" || 
-               base64(ATIME) || "|" ||
-               base64(TID)   || "|" || 
-               base64(IV))
+AUTHTAG = HMAC(base64url(DATA)  || "|" || 
+               base64url(ATIME) || "|" ||
+               base64url(TID)   || "|" || 
+               base64url(IV))
             ]]></artwork>
          </figure>
          Note that, from a cryptographic point of view, the "|" character
@@ -460,7 +460,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <t>Since the only user of the ATIME field is the server, it is
           unnecessary for it to be synchronized with the client -- though
-          it needs to be a fairly stable clock.  However, if multiple servers 
+          it needs to use a fairly stable clock.  However, if multiple servers 
           are active in a load-balancing configuration, clocks SHOULD be 
           synchronized to avoid errors in the calculation of session expiry.</t>
 
@@ -474,7 +474,7 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <t>Then the authentication tag, which encompasses each SCS field
           (along with lengths, and relative positions) is computed by HMAC'ing
-          the "|"-separated concatenation of their base64 representations using
+          the "|"-separated concatenation of their base64url representations using
           the key-set identified by TID (step 4.).</t>
 
           <t>Finally the SCS cookie-value is created as follows:
@@ -519,8 +519,8 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
 
           <t>If the cryptographic credentials (encryption and authentication
           algorithms and keys identified by TID) are unavailable (step 12.),
-          the inbound SCS cookie is discarded as its value has no chance to
-          be interpreted correctly.  
+          the inbound SCS cookie is discarded since its value has no chance to
+          be interpreted correctly.
           This may happen for several reasons: e.g., if a device without 
           storage has been reset and loses the credentials stored in RAM, if 
           a server pool node desynchronizes, or in case of a key compromise 
@@ -573,12 +573,12 @@ AUTHTAG = HMAC(base64(DATA)  || "|" ||
           <artwork align="center"><![CDATA[
 1.  dump-state:
     S --> C
-        Set-Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
+        Set-Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g|MTI5...
            Expires=...; Path=...; Domain=...;
 
 2.  restore-state:
     C --> S
-        Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g==|MTI5...
+        Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g|MTI5...
           ]]></artwork>
         </figure>
 
@@ -738,8 +738,9 @@ T  ----------------|---------------------| {no longer valid}
       <section anchor="sec_security_of_the_crypto_protocol"
                title="Security of the Cryptographic Protocol">
         <t>From a cryptographic architecture perspective, the described
-        mechanism can be easily traced to an Encode-then-EtM scheme described
-        in <xref target="Kohno"></xref>.</t>
+        mechanism can be easily traced to an "encode then encrypt then MAC"
+        scheme (Encode-then-EtM) as described in <xref
+        target="Kohno"></xref>.</t>
 
         <t>Given a "provably-secure" encryption scheme and MAC (as for the
         algorithms mandated in <xref target="sec_cipher_set"></xref>),
@@ -983,11 +984,11 @@ T  ----------------|---------------------| {no longer valid}
 
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: GJRz3N0cuPKTumCqjtVjgw%3D%3D</t>
-          <t>ATIME: MTMyMzg5ODgwMA%3D%3D</t>
+          <t>DATA: GJRz3N0cuPKTumCqjtVjgw</t>
+          <t>ATIME: MTMyMzg5ODgwMA</t>
           <t>TID: dGlk</t>
-          <t>IV: 0QL8yr8FA7H0Tx_9bRJcZg%3D%3D</t>
-          <t>AUTHTAG: ktKOYXnTjrCzXgxGH__dWXUZAJ8%3D</t>
+          <t>IV: 0QL8yr8FA7H0Tx_9bRJcZg</t>
+          <t>AUTHTAG: ktKOYXnTjrCzXgxGH__dWXUZAJ8</t>
         </list></t>
       </section>
 
@@ -1003,11 +1004,11 @@ T  ----------------|---------------------| {no longer valid}
         </list></t>
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8%3D</t>
-          <t>ATIME: MTMyMzg5OTM4OA%3D%3D</t>
+          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8</t>
+          <t>ATIME: MTMyMzg5OTM4OA</t>
           <t>TID: dGlk</t>
-          <t>IV: cm8ALkzzbf3xH5LPEo7niw%3D%3D</t>
-          <t>AUTHTAG: K_rig5ZxGz_aGPQkyAb8JRMcTUY%3D</t>
+          <t>IV: cm8ALkzzbf3xH5LPEo7niw</t>
+          <t>AUTHTAG: K_rig5ZxGz_aGPQkyAb8JRMcTUY</t>
         </list></t>
         <t>In both cases, the resulting SCS cookie is obtained via ordered 
         concatenation of the produced tokens, as described in 

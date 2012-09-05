@@ -2,6 +2,9 @@
 
 SCSBIN="`pwd`/scs"
 
+#OF=/dev/null
+OF=/dev/stdout
+
 err ()
 {
     echo $*
@@ -10,14 +13,14 @@ err ()
 
 test0 ()
 {
-    "${SCSBIN}" -A > /dev/null
+    "${SCSBIN}" -A > "${OF}"
 }
 
 test1 ()
 {
     "${SCSBIN}" -A \
                 -s "try to encode and decode my custom state" \
-        > /dev/null
+        > "${OF}"
 }
 
 test2 ()
@@ -26,7 +29,7 @@ test2 ()
                 -s "yet another custom state string" \
                 -k "0123" \
                 -h "4567" \
-        > /dev/null
+        > "${OF}"
 }
 
 test3 ()
@@ -36,7 +39,7 @@ test3 ()
                 -k "0123" \
                 -h "4567" \
                 -t my_tid \
-        > /dev/null
+        > "${OF}"
 }
 
 test4 ()
@@ -46,7 +49,7 @@ test4 ()
                 -z \
                 -f book.json \
                 -o book-decoded.json
-        > /dev/null
+        > "${OF}"
 
     diff book.json book-decoded.json 
     ret=$?
