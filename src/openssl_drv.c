@@ -168,11 +168,11 @@ static int rng_init (void)
     uint32_t r[32]; /* 1024-bit */
 
 #ifdef HAVE_ARC4RANDOM
-    for (i = 0; i < sizeof r; ++i)
+    for (i = 0; i < sizeof r / sizeof(uint32_t); ++i)
         r[i] = arc4random();
 #else
     srand((unsigned) &i);
-    for (i = 0; i < sizeof r; ++i)
+    for (i = 0; i < sizeof r / sizeof(uint32_t); ++i)
         r[i] = (uint32_t) rand();
 #endif  /* HAVE_ARC4RANDOM */
 
