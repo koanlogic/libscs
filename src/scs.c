@@ -606,7 +606,7 @@ static int create_tag (scs_t *ctx, scs_keyset_t *ks, int skip_encoding)
     /* Base-64 encode the auth tag. */
     if (base64url_encode(ats->tag, ats->tag_sz, ats->b64_tag, &b64_tag))
     {
-        scs_set_error(ctx, SCS_ERR_ENCODE, "tag encode failed", A[i].id);
+        scs_set_error(ctx, SCS_ERR_ENCODE, "tag encode failed");
         return -1;
     }
 
