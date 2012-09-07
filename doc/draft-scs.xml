@@ -104,13 +104,13 @@
       opposed to usual cookies, which are un-authenticated and sent in
       clear text.</t>
 
-      <t>An interesting property, rising naturally from the given 
+      <t>An interesting property, rising naturally from the given
       confidentiality and authentication properties, is that by using SCS
-      cookies, it is possible to avoid storing the session state material on the
-      server side altogether. In fact, an SCS cookie presented by the user
-      agent to the origin server can always be validated (i.e. possibly 
-      recognized as self-produced, untampered material) and, as such, be 
-      used to safely restore application state.</t>
+      cookies, it is possible to avoid storing the session state material on
+      the server side altogether. In fact, an SCS cookie presented by the user
+      agent to the origin server can always be validated (i.e. possibly
+      recognized as self-produced, fresh, untampered material) and, as
+      such, be used to safely restore application state.</t>
 
       <t>Hence, typical use cases may include devices with little or no storage
       offering some functionality via an HTTP interface, as well as web 
@@ -227,19 +227,23 @@
       <section anchor="sec_pdu_description" title="SCS Cookie Description">
         <t>S and C exchange a cookie (<xref target="sec_pdu_exchange" />),
         whose cookie-value consists of a sequence of adjacent non-empty values,
-        each of which is the Base-64 encoding of a specific SCS field, 
-        separated by its left and/or right sibling by means of the %x7c ASCII 
-        character (i.e. '|'), as follows:
+        each of which is the 'URL and Filename safe' Base-64 encoding <xref
+        target="RFC4648" /> of a specific SCS field.</t>
+        <t>(Hereafter the encoded and raw versions of each SCS field are
+        distinguished based on the presence, or lack thereof, of the 'e'
+        prefix in their name, e.g. eATIME and ATIME.)</t>
+        <t>Each SCS field is separated by its left and/or right sibling by means 
+        of the %x7c ASCII character (i.e. '|'), as follows:
         <figure anchor="abnf">
             <artwork align="left"><![CDATA[
-scs-cookie       = scs-cookie-name "=" scs-cookie-value
-scs-cookie-name  = token
-scs-cookie-value = DATA "|" ATIME "|" TID "|" IV "|" AUTHTAG
-DATA             = 1*base64url-character
-ATIME            = 1*base64url-character
-TID              = 1*base64url-character
-IV               = 1*base64url-character
-AUTHTAG          = 1*base64url-character
+scs-cookie        = scs-cookie-name "=" scs-cookie-value
+scs-cookie-name   = token
+scs-cookie-value  = eDATA "|" eATIME "|" eTID "|" eIV "|" eAUTHTAG
+eDATA             = 1*base64url-character
+eATIME            = 1*base64url-character
+eTID              = 1*base64url-character
+eIV               = 1*base64url-character
+eAUTHTAG          = 1*base64url-character
             ]]></artwork>
         </figure>
         </t>
@@ -336,13 +340,12 @@ AUTHTAG          = 1*base64url-character
         <!-- end of IV -->
 
         <section anchor="sec_scs_authtag" title="AUTHTAG">
-          <t>Authentication tag based on the concatenation of DATA, ATIME,
-          TID and IV fields base64url encoded, framed by the "|" separator:
+          <t>Authentication tag based on the plain string concatenation of the base64url encoded DATA, ATIME, TID and IV fields, framed by the "|" separator:
           <figure>
             <artwork align="left"><![CDATA[
-AUTHTAG = HMAC(base64url(DATA)  || "|" || 
-               base64url(ATIME) || "|" ||
-               base64url(TID)   || "|" || 
+AUTHTAG = HMAC(base64url(DATA)  "|"
+               base64url(ATIME) "|"
+               base64url(TID)   "|"
                base64url(IV))
             ]]></artwork>
          </figure>
@@ -381,11 +384,16 @@ AUTHTAG = HMAC(base64url(DATA)  || "|" ||
             <t>e/d(): cookie value encoding/decoding functions (<xref
             target="sec_cookie_encoding"></xref>);</t>
 
-            <t>||: concatenation operator, i.e. "|" char;</t>
+            <t>||: explicit framing byte, i.e. the "|" char;</t>
 
             <t>RAND(): random number generator <xref
             target="RFC4086"></xref>.</t>
           </list></t>
+
+          <t>Please note that using "|" as the framing byte is arbitrary: any
+          symbol with empty intersection with the base64url alphabet is safe to
+          be used (as long as it is allowed by the cookie-value ABNF in 
+          <xref target="RFC6265" />).</t>
 
         <section anchor="sec_cipher_set" title="Cipher Set">
           <t>Implementors MUST support at least the following algorithms:
@@ -573,12 +581,12 @@ AUTHTAG = HMAC(base64url(DATA)  || "|" ||
           <artwork align="center"><![CDATA[
 1.  dump-state:
     S --> C
-        Set-Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g|MTI5...
+        Set-Cookie: ANY_COOKIE_NAME=KrdPagFes_5ma-ZUluMsww|MTM0...
            Expires=...; Path=...; Domain=...;
 
 2.  restore-state:
     C --> S
-        Cookie: ANY_COOKIE_NAME=BO2zHC0tRg76axnguyuK5g|MTI5...
+        Cookie: ANY_COOKIE_NAME=KrdPagFes_5ma-ZUluMsww|MTM0...
           ]]></artwork>
         </figure>
 
@@ -696,7 +704,7 @@ T  ----------------|---------------------| {no longer valid}
         <t>inflation of the Base-64 encoding of the state data (approx. 
         1.4 times the original size, including the encryption padding), and</t> 
         <t>the fixed size increment (approx. 80/90 bytes) due to SCS fields and 
-      framing overhead.</t>
+        framing overhead.</t>
       </list></t>
       <t>While the former is a price the user must always pay proportionally
       to the original data size, the latter is a fixed quantum, which can be 
@@ -978,17 +986,17 @@ T  ----------------|---------------------| {no longer valid}
           <t>AES-CBC-128 key: "cipher key"</t>
           <t>HMAC-SHA1 key: "hmac key"</t>
           <t>TID: "tid"</t>
-          <t>ATIME: 1323898800</t>
-          <t>IV: \xd1\x02\xfc\xca\xbf\x05\x03\xb1\xf4\x4f\x1f\xfd\x6d\x12\x5c\x66</t>
+          <t>ATIME: 1347043871</t>
+          <t>IV: \x13\xa0\x73\xca\x17\x15\xe1\x79\xaa\xd0\x11\xc4\x3d\x64\xeb\x99</t>
         </list></t>
 
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: GJRz3N0cuPKTumCqjtVjgw</t>
-          <t>ATIME: MTMyMzg5ODgwMA</t>
+          <t>DATA: PzGTlg3d0ttg4xweT6JmmA</t>
+          <t>ATIME: MTM0NzA0Mzg3MQ</t>
           <t>TID: dGlk</t>
-          <t>IV: 0QL8yr8FA7H0Tx_9bRJcZg</t>
-          <t>AUTHTAG: ktKOYXnTjrCzXgxGH__dWXUZAJ8</t>
+          <t>IV: E6BzyhcV4Xmq0BHEPWTrmQ</t>
+          <t>AUTHTAG: GydWZ1jLnxVhnaXnPGwv8C5SMsE</t>
         </list></t>
       </section>
 
@@ -999,16 +1007,16 @@ T  ----------------|---------------------| {no longer valid}
           <t>AES-CBC-128 key: "cipher key"</t>
           <t>HMAC-SHA1 key: "hmac key"</t>
           <t>TID: "tid"</t>
-          <t>ATIME: 1323899388</t>
-          <t>IV:\x72\x6f\x00\x2e\x4c\xf3\x6d\xfd\xf1\x1f\x92\xcf\x12\x8e\xe7\x8b</t>
+          <t>ATIME: 1347044039</t>
+          <t>IV: \x01\x84\xef\xe8\x43\x66\xa1\x21\x2a\x8b\x80\x55\xf0\x7d\xf4\x18</t>
         </list></t>
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: XaLWZDoFmv9vYF8wYYYxeXtCkUYAwbzpCfBWBzAy3Y8</t>
-          <t>ATIME: MTMyMzg5OTM4OA</t>
+          <t>DATA: DnZwvXWGIwQtD5oU4kdakEWIcNvugk-COrLP2l-Bvgs</t>
+          <t>ATIME: MTM0NzA0NDAzOQ</t>
           <t>TID: dGlk</t>
-          <t>IV: cm8ALkzzbf3xH5LPEo7niw</t>
-          <t>AUTHTAG: K_rig5ZxGz_aGPQkyAb8JRMcTUY</t>
+          <t>IV: AYTv6ENmoSEqi4BV8H30GA</t>
+          <t>AUTHTAG: q8gmgQK8TWU-wqas_TGDxZqy8PM</t>
         </list></t>
         <t>In both cases, the resulting SCS cookie is obtained via ordered 
         concatenation of the produced tokens, as described in 
