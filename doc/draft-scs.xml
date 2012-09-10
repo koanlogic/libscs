@@ -19,7 +19,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-05"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-06"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -983,20 +983,20 @@ T  ----------------|---------------------| {no longer valid}
         <t>The following parameters:
         <list style="symbols">
           <t>Plain text cookie: "a state string"</t>
-          <t>AES-CBC-128 key: "cipher key"</t>
-          <t>HMAC-SHA1 key: "hmac key"</t>
+          <t>AES-CBC-128 key: "123456789abcdef"</t>
+          <t>HMAC-SHA1 key: "12345678901234567890"</t>
           <t>TID: "tid"</t>
-          <t>ATIME: 1347043871</t>
-          <t>IV: \x13\xa0\x73\xca\x17\x15\xe1\x79\xaa\xd0\x11\xc4\x3d\x64\xeb\x99</t>
+          <t>ATIME: 1347265955</t>
+          <t>IV: \xb4\xbd\xe5\x24\xf7\xf6\x9d\x44\x85\x30\xde\x9d\xb5\x55\xc9\x4f</t>
         </list></t>
 
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: PzGTlg3d0ttg4xweT6JmmA</t>
-          <t>ATIME: MTM0NzA0Mzg3MQ</t>
-          <t>TID: dGlk</t>
-          <t>IV: E6BzyhcV4Xmq0BHEPWTrmQ</t>
-          <t>AUTHTAG: GydWZ1jLnxVhnaXnPGwv8C5SMsE</t>
+          <t>DATA: DqfW4SFqcjBXqSTvF2qnRA</t>
+          <t>ATIME: MTM0NzI2NTk1NQ</t>
+          <t>TID: OHU7M1cqdDQt</t>
+          <t>IV: tL3lJPf2nUSFMN6dtVXJTw</t>
+          <t>AUTHTAG: AznYHKga9mLL8ioi3If_1iy2KSA</t>
         </list></t>
       </section>
 
@@ -1004,19 +1004,19 @@ T  ----------------|---------------------| {no longer valid}
         <t>The same parameters as above, except ATIME and IV:
         <list style="symbols">
           <t>Plain text cookie: "a state string"</t>
-          <t>AES-CBC-128 key: "cipher key"</t>
-          <t>HMAC-SHA1 key: "hmac key"</t>
+          <t>AES-CBC-128 key: "123456789abcdef"</t>
+          <t>HMAC-SHA1 key: "12345678901234567890"</t>
           <t>TID: "tid"</t>
-          <t>ATIME: 1347044039</t>
-          <t>IV: \x01\x84\xef\xe8\x43\x66\xa1\x21\x2a\x8b\x80\x55\xf0\x7d\xf4\x18</t>
+          <t>ATIME: 1347281709</t>
+          <t>IV: \x1d\xa7\x6f\xa0\xff\x11\xd7\x95\xe3\x4b\xfb\xa9\xff\x65\xf9\xc7</t>
         </list></t>
         <t>produce the following tokens:
         <list style="symbols">
-          <t>DATA: DnZwvXWGIwQtD5oU4kdakEWIcNvugk-COrLP2l-Bvgs</t>
-          <t>ATIME: MTM0NzA0NDAzOQ</t>
-          <t>TID: dGlk</t>
-          <t>IV: AYTv6ENmoSEqi4BV8H30GA</t>
-          <t>AUTHTAG: q8gmgQK8TWU-wqas_TGDxZqy8PM</t>
+          <t>DATA: PbE-ypmQ43M8LzKZ6fMwFg-COrLP2l-Bvgs</t>
+          <t>ATIME: MTM0NzI4MTcwOQ</t>
+          <t>TID: akxIKmhbMTE8</t>
+          <t>IV: HadvoP8R15XjS_up_2X5xw</t>
+          <t>AUTHTAG: A6qevPr-ugHQChlr_EiKYWPvpB0</t>
         </list></t>
         <t>In both cases, the resulting SCS cookie is obtained via ordered 
         concatenation of the produced tokens, as described in 
