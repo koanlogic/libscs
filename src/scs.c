@@ -60,10 +60,11 @@ static struct
 
 static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
         scs_cipherset_t cipherset, const uint8_t *key, const uint8_t *hkey);
+static int init_atoms(scs_atoms_t *ats);
 static int new_key (uint8_t *dst, const uint8_t *src, size_t sz);
 static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid);
 static void reset_atoms (scs_atoms_t *atoms);
-static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len);
+static const char *gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len);
 static int what_time_is_it (scs_t *ctx, time_t *pnow);
 
 /* Encode support. */
@@ -240,7 +241,7 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
         return SCS_ERR_CRYPTO;
 
     /* Make room for the SCS context structure. */
-    if ((s = malloc(sizeof *s)) == NULL)
+    if ((s = calloc(1, sizeof *s)) == NULL)
         return SCS_ERR_MEM;
 
     /* Initialize current keyset. */
@@ -266,6 +267,9 @@ int scs_init (const char *tid, scs_cipherset_t cipherset, const uint8_t *key,
     /* Initialize error reporting. */
     s->rc = SCS_OK;
     s->estr[0] = '\0';
+
+    /* Init protocol atoms. */
+    (void) init_atoms(&s->atoms);
 
     /* 
      * Note: .tag_sz will be set by each driver tag() function.
@@ -719,10 +723,13 @@ static int add_pad (scs_t *ctx)
 
 static int set_tid (scs_t *ctx, scs_keyset_t *ks, const char *tid)
 {
-    if (tid == SCS_TID_AUTO)
-        return gen_tid(ctx, ks->tid, SCS_TID_AUTO_LEN);
+    char t[SCS_TID_MAX] = { 0 };
 
-    return (strlcpy(ks->tid, tid, sizeof ks->tid) >= sizeof ks->tid) ? -1 : 0;
+    const char *p = (tid == SCS_TID_AUTO)
+        ? gen_tid(ctx, t, SCS_TID_AUTO_LEN)
+        : tid;
+
+    return (strlcpy(ks->tid, p, sizeof ks->tid) >= sizeof ks->tid) ? -1 : 0;
 }
 
 static int init_keyset (scs_t *ctx, scs_keyset_t *ks, const char *tid, int comp,
@@ -1013,15 +1020,15 @@ err:
 #endif  /* HAVE_LIBZ */
 }
 
-static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len)
+static const char *gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len)
 {
     char *dst = tid;
-    uint8_t rand_block[SCS_TID_MAX], *src = &rand_block[0];
+    uint8_t rand_block[SCS_TID_MAX] = { 0 }, *src = &rand_block[0];
     size_t len = MIN(tid_len, SCS_TID_MAX);
 
     /* Fill rand_block with garbage. */
     if (D.rand(ctx, src, len))
-        return -1;
+        return NULL;
 
     /* Convert random bytes to printable ASCII chars. */
     while (--len)
@@ -1029,7 +1036,7 @@ static int gen_tid (scs_t *ctx, char tid[SCS_TID_MAX], size_t tid_len)
 
     *dst = '\0';
 
-    return 0;
+    return tid;
 }
 
 static int check_update_keyset (scs_t *ctx)
@@ -1108,4 +1115,14 @@ static int update_last_refresh (scs_t *ctx, time_t now)
     ctx->last_refresh = now - ((now - ctx->last_refresh) % ctx->refresh_period);
 
     return 0;
+}
+
+static int init_atoms(scs_atoms_t *ats)
+{
+    if (ats)
+    {
+        memset(ats, 0, sizeof *ats);
+        return 0;
+    }
+    return -1;
 }
