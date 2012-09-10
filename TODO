@@ -5,6 +5,8 @@ code:
 - doxy framework
 - length constraint over produced cookies
 - factor out compression code
+- refresh mechanism
+- more tests
 
 - on darwin with compression enabled I get:
 ==96275== Conditional jump or move depends on uninitialised value(s)

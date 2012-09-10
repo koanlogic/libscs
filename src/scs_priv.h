@@ -92,7 +92,7 @@ struct scs_s
 
     time_t session_max_age;
 
-    time_t refresh_freq;
+    time_t refresh_period;
     time_t expiry;
     time_t last_refresh;
     int refresh_mode;

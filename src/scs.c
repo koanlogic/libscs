@@ -214,13 +214,18 @@ void *scs_decode (scs_t *ctx, const char *cookie, size_t *pstate_sz)
  *  In case zlib support is disabled, the \p comp value will be silently 
  *  ignored (i.e. always set to false).
  *
- *  \param  tid             ...
- *  \param  cipherset       ...
- *  \param  key             ...
- *  \param  hkey            ...
- *  \param  comp            ...
- *  \param  session_max_age ...
- *  \param  ps              ...
+ *  \param  tid             A string uniquely identifying the cipherset
+ *                          associated to keys \p key and \p hkey.
+ *  \param  cipherset       The cipherset type (at present only \p 
+ *                          AES_128_CBC_HMAC_SHA1 is supported).
+ *  \param  key             Encryption key; it is assumed to be of the correct
+ *                          size, i.e. 16 bytes for AES 128.
+ *  \param  hkey            HMAC key; it is assumed to be of the correct size,
+ *                          i.e. 20 bytes for SHA1-based HMAC.
+ *  \param  comp            Compression flag (non zero means: use compression).
+ *  \param  session_max_age Max duration of the associated session (i.e.
+ *                          lifetime between two subsequent use of the cookie).
+ *  \param  ps              The scs_t object as a result argument.
  *
  *  \return ::SCS_OK on success, one of the ::scs_err_t values on error.
  */ 
@@ -279,9 +284,9 @@ err:
 /** 
  *  \brief  Dispose memory resources allocated to the supplied SCS context.
  *
- *  ...
+ *  Destroy all resources associated to the supplied scs_t object.
  *
- *  \param  ctx ...
+ *  \param  ctx The scs_t object that is to be destroyed.
  *
  *  \return Nothing.
  */
@@ -296,9 +301,9 @@ void scs_term (scs_t *ctx)
 
 /** \brief  Return last error string. 
  *
- *  ...
+ *  Return the last registered error string. 
  *
- *  \param  ctx ...
+ *  \param  ctx  The scs_t object that we want to inspect.
  */
 const char *scs_err (scs_t *ctx) 
 {
@@ -308,12 +313,17 @@ const char *scs_err (scs_t *ctx)
 /**
  *  Refresh current keyset with the supplied keying material.
  *
- *  ...
+ *  Update the current keyset with the supplied keying material (both HMAC and
+ *  encryption keys must be given at once) and associate it with the supplied
+ *  TID.  Note that the TID string must be different from the one currently in
+ *  use.  In case of error, the current keyset is kept in use.
  *
- *  \param  ctx     ...
- *  \param  new_tid ...
- *  \param  key     ...
- *  \param  hkey    ...
+ *  \param  ctx     The scs_t object that will be refreshed.
+ *  \param  new_tid The new TID string.
+ *  \param  key     Encryption key; it is assumed to be of the correct size, 
+ *                  i.e. 16 bytes for AES 128.
+ *  \param  hkey    HMAC key; it is assumed to be of the correct size, i.e. 20
+ *                  bytes for SHA1-based HMAC.
  *
  *  \return \c 0 on success, \c -1 if an error occurs.
  */ 
@@ -356,19 +366,19 @@ recover:
 /**
  *  \brief  Set auto-refresh policy parameters.
  *
- *  ...
+ *  Modify settings for automatic refresh of the keyset.
  *
- *  \param  ctx             ...
- *  \param  refresh_freq    ...
+ *  \param  ctx             The scs_t object that needs to be configured.
+ *  \param  refresh_period  Number of seconds 
  *  \param  expiry          ...
  *
  *  \return \0 on success.
  */ 
-int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_freq, time_t expiry)
+int scs_auto_refresh_setup (scs_t *ctx, time_t refresh_period, time_t expiry)
 {
     ctx->refresh_mode = SCS_REFRESH_AUTO;
 
-    ctx->refresh_freq = MAX(refresh_freq, ctx->session_max_age);
+    ctx->refresh_period = MAX(refresh_period, ctx->session_max_age);
     ctx->expiry = MIN(expiry, ctx->session_max_age);
 
     return 0; 
@@ -1039,7 +1049,7 @@ static int check_update_keyset (scs_t *ctx)
         ctx->prev_keyset.active = 0;
 
     /* Then try and see if the primary keyset lifetime is expired... */
-    if (now < ctx->last_refresh + ctx->refresh_freq)
+    if (now < ctx->last_refresh + ctx->refresh_period)
         return 0;
 
     /* ...in which case the whole keyset is updated. */
@@ -1088,14 +1098,14 @@ static int update_last_refresh (scs_t *ctx, time_t now)
         return 0;
     }
 
-    /* Don't let further modulo operation be confused. */
+    /* Don't let the following modulo operation be confused. */
     if (now == ctx->last_refresh)
         return 0;
 
     /* Automatic refresh update policy is to set .last_refresh timestamp
-     * to the nearest (to now) multiple of .refresh_freq starting from previous
-     * .last_refresh. */
-    ctx->last_refresh = now - ((now - ctx->last_refresh) % ctx->refresh_freq);
+     * to the nearest (to now) multiple of .refresh_period starting from
+     * previous .last_refresh. */
+    ctx->last_refresh = now - ((now - ctx->last_refresh) % ctx->refresh_period);
 
     return 0;
 }

@@ -13,11 +13,15 @@ err ()
 
 test0 ()
 {
+    # Encode/Decode with all automatic parameters.
+
     "${SCSBIN}" -A > "${OF}"
 }
 
 test1 ()
 {
+    # Encode/Decode with all automatic parameters but the state string.
+
     "${SCSBIN}" -A \
                 -s "try to encode and decode my custom state" \
         > "${OF}"
@@ -25,25 +29,32 @@ test1 ()
 
 test2 ()
 {
+    # Encode/Decode with all automatic parameters but the state string, and
+    # HMAC and encryption keys.
+
     "${SCSBIN}" -A \
                 -s "yet another custom state string" \
-                -k "0123" \
-                -h "4567" \
+                -k "0123456789abcdef" \
+                -h "12345678901234567890" \
         > "${OF}"
 }
 
 test3 ()
 {
+    # Encode/Decode with all custom parameters.
+
     "${SCSBIN}" -A \
                 -s "my state" \
-                -k "0123" \
-                -h "4567" \
+                -k "fedcba9876543210" \
+                -h "09876543210987654321" \
                 -t my_tid \
         > "${OF}"
 }
 
 test4 ()
 {
+    # Encode/Decode from file using compression.
+
     "${SCSBIN}" -A \
                 -d \
                 -z \
