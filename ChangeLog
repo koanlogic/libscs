@@ -1,6 +1,10 @@
 2011-02-11
-    * first cry
+	* first cry
 
 2012-02-14
-    * Applied patch by Chris Conlon (chris AT yassl.com) to make it work with
-      CyaSSL version 2.0.6
+	* [src] patch by Chris Conlon to compile against CyaSSL 2.0.6
+
+2012-09-12
+	* [I-D] (-05) integrate comments by Jim Schaad + correct test vectors
+	* [src] fix a couple of small bugs (thanks scan-build)
+	* [src] force explicit memory initialisation to please valgrind
