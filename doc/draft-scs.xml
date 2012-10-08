@@ -19,7 +19,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-06"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-07"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -340,7 +340,7 @@ eAUTHTAG          = 1*base64url-character
         <!-- end of IV -->
 
         <section anchor="sec_scs_authtag" title="AUTHTAG">
-          <t>Authentication tag based on the plain string concatenation of the base64url encoded DATA, ATIME, TID and IV fields, framed by the "|" separator:
+          <t>Authentication tag based on the plain string concatenation of the base64url encoded DATA, ATIME, TID and IV fields, framed by the "|" separator (see also the definition of the Concat() function in <xref target="sec_crypto_transform" />):
           <figure>
             <artwork align="left"><![CDATA[
 AUTHTAG = HMAC(base64url(DATA)  "|"
@@ -384,16 +384,21 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
             <t>e/d(): cookie value encoding/decoding functions (<xref
             target="sec_cookie_encoding"></xref>);</t>
 
-            <t>||: explicit framing byte, i.e. the "|" char;</t>
+            <t>RAND(): random number generator <xref target="RFC4086"></xref>.</t>
 
-            <t>RAND(): random number generator <xref
-            target="RFC4086"></xref>.</t>
+            <t>Concat(): string concatenation function. It takes an arbitrary
+            number of base64url encoded strings and returns the string obtained
+            by juxtaposing each of the inputs in the exact order in which they
+            are listed, separated by the "|" char.  Example:
+            <list style="empty">
+              <t>Concat("akxI", "MTM", "Hadvo") = "akxI|MTM|Hadvo".</t>
+            </list>
+            Note that using "|" as the framing byte in the Concat()
+            function is arbitrary: any symbol with empty intersection with the
+            base64url alphabet is safe to be used (as long as it is allowed by
+            the cookie-value ABNF in <xref target="RFC6265" />).</t>
           </list></t>
 
-          <t>Please note that using "|" as the framing byte is arbitrary: any
-          symbol with empty intersection with the base64url alphabet is safe to
-          be used (as long as it is allowed by the cookie-value ABNF in 
-          <xref target="RFC6265" />).</t>
 
         <section anchor="sec_cipher_set" title="Cipher Set">
           <t>Implementors MUST support at least the following algorithms:
@@ -454,7 +459,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 1.  IV := RAND()
 2.  ATIME := NOW
 3.  DATA := Enc(Comp(plain-text-cookie-value), IV)
-4.  AUTHTAG := HMAC(e(DATA)||e(ATIME)||e(TID)||e(IV))
+4.  AUTHTAG := HMAC(Concat(e(DATA), e(ATIME), e(TID), e(IV)))
                 ]]></artwork>
           </figure>
 
@@ -477,7 +482,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with as many padding bytes of
-          equal value as the pad length -- as defined in the scheme of
+          equal value as the pad length -- as defined by the scheme given in
           Section 6.3 of <xref target="RFC5652"></xref>.</t>
 
           <t>Then the authentication tag, which encompasses each SCS field
@@ -487,7 +492,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
           <t>Finally the SCS cookie-value is created as follows:
           <list style="empty">
-              <t>scs-cookie-value = e(DATA)||e(ATIME)||e(TID)||e(IV)||e(tag)</t>
+              <t>scs-cookie-value = Concat(e(DATA), e(ATIME), e(TID), e(IV), e(tag))</t>
           </list></t>
         </section>
 
@@ -505,7 +510,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 1.      tid' := d(eTID)
 2.      If (tid' is available)
 3.          tag' := d(eAUTHTAG)
-4.          tag := HMAC(eDATA||eATIME||eTID||eIV)
+4.          tag := HMAC(Concat(eDATA, eATIME, eTID, eIV))
 5.          If (tag = tag')
 6.              atime' := d(eATIME)
 7.              If (NOW - atime' <= session_max_age)
