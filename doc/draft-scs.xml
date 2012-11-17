@@ -21,7 +21,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-08"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-09"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -715,6 +715,17 @@ T  ----------------|---------------------| {no longer valid}
       <t>Since there is only one refresh attribute also in situations with
       more than one key (e.g. one for encryption and one for authentication)
       within the same T, the smallest value is chosen.</t>
+
+      <t>It is critical for the correctness of the protocol that, in case
+      multiple equivalent SCS servers are used in a pool, all of them share
+      the same view of time (see also <xref target="sec_outbound_transform" />)
+      and keying material.</t>
+      
+      <t>As far as the latter is concerned, SCS does not mandate the use of any
+      specific key sharing mechanism, and will keep working correctly as long
+      as said mechanism is able to provide a single, coherent, view of the keys
+      shared by pool members -- while conforming to the recommendations given
+      in this section.</t>
     </section>
 
     <section anchor="scs_inflation" title="Cookie Size Considerations">
@@ -847,16 +858,22 @@ T  ----------------|---------------------| {no longer valid}
               the embodied nonce is deleted from the list and will be
               therefore discarded whenever replayed.</t>
 
-              <t>TLS binding scenario: the Server application must run on TLS and
-              be able to extract information related to the current TLS session and
+              <t>TLS binding scenario: the Server application must run on TLS,
+              and be able to extract information related to the current TLS session and
               store them into the DATA field of the SCS cookie itself <xref target="RFC5056" />.
-              By establishing this secure channel binding prevents usage by third
-              parties and eliminates the value of the cookie after the TLS session
-              is terminated - regardless of the lifetime of the cookie.</t>
+              The establishment of this secure channel binding prevents any third party 
+              to reuse the SCS cookie, and drops its value altogether after the TLS session
+              is terminated - regardless of the lifetime of the cookie.  This approach
+              suffers a scalability problem in that it requires each SCS session being
+              handled by the same client-server pair.  However, it provides
+              a robust model and an affordable compromise when security of the session
+              is exceptionally valuable (e.g. an user interacting with its online
+              banking site).</t>
+
             </list></t>
 
           <t>It is worth noting that in all but the latter scenario, if an attacker is able 
-          to use the cookie before the legitimate client gets a chance to, then the
+          to use the cookie before the legitimate Client gets a chance to, then the
           impersonation attack will always succeed.</t>
 
         </section>
