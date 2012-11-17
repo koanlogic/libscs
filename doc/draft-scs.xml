@@ -10,6 +10,8 @@
 <!ENTITY RFC3740 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.3740.xml">
 <!ENTITY RFC4301 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.4301.xml">
 <!ENTITY RFC6265 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6265.xml">
+<!ENTITY RFC6194 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6194.xml">
+<!ENTITY RFC5056 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5056.xml">
 ]>
 <?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
 <?rfc strict="yes" ?>
@@ -19,7 +21,7 @@
 <?rfc sortrefs="yes" ?>
 <?rfc compact="yes" ?>
 <?rfc subcompact="no" ?>
-<rfc category="info" docName="draft-secure-cookie-session-protocol-07"
+<rfc category="info" docName="draft-secure-cookie-session-protocol-08"
      ipr="trust200902">
   <front>
     <title abbrev="">SCS: Secure Cookie Sessions for HTTP</title>
@@ -329,7 +331,7 @@ eAUTHTAG          = 1*base64url-character
         <!-- end of TID -->
 
         <section anchor="sec_scs_iv" title="IV">
-          <t>Initialization Vector used for the encryption algorithm (<xref
+          <t>Initialization Vector used for the encryption algorithm (see <xref
           target="sec_crypto_transform"></xref>).</t>
 
           <t>In order to avoid providing correlation information to a possible
@@ -340,7 +342,7 @@ eAUTHTAG          = 1*base64url-character
         <!-- end of IV -->
 
         <section anchor="sec_scs_authtag" title="AUTHTAG">
-          <t>Authentication tag based on the plain string concatenation of the base64url encoded DATA, ATIME, TID and IV fields, framed by the "|" separator (see also the definition of the Concat() function in <xref target="sec_crypto_transform" />):
+          <t>Authentication tag based on the plain string concatenation of the base64url encoded DATA, ATIME, TID and IV fields, framed by the "|" separator (see also the definition of the Box() function in <xref target="sec_crypto_transform" />):
           <figure>
             <artwork align="left"><![CDATA[
 AUTHTAG = HMAC(base64url(DATA)  "|"
@@ -384,33 +386,47 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
             <t>e/d(): cookie value encoding/decoding functions (<xref
             target="sec_cookie_encoding"></xref>);</t>
 
-            <t>RAND(): random number generator <xref target="RFC4086"></xref>.</t>
+            <t>RAND(): random number generator <xref target="RFC4086"></xref>;</t>
 
-            <t>Concat(): string concatenation function. It takes an arbitrary
+            <t>Box(): string boxing function. It takes an arbitrary
             number of base64url encoded strings and returns the string obtained
             by juxtaposing each of the inputs in the exact order in which they
-            are listed, separated by the "|" char.  Example:
+            are listed, separated by the "|" char.  For example:
             <list style="empty">
-              <t>Concat("akxI", "MTM", "Hadvo") = "akxI|MTM|Hadvo".</t>
-            </list>
-            Note that using "|" as the framing byte in the Concat()
-            function is arbitrary: any symbol with empty intersection with the
-            base64url alphabet is safe to be used (as long as it is allowed by
-            the cookie-value ABNF in <xref target="RFC6265" />).</t>
+              <t>Box("akxI", "MTM", "Hadvo") = "akxI|MTM|Hadvo".</t>
+            </list></t>
           </list></t>
 
+        <section title="Choice and Role of the Framing Symbol">
+            <t>Note that that the adoption of "|" as the framing symbol
+            in the Box() function is arbitrary: any char allowed by the cookie-value
+            ABNF in <xref target="RFC6265" /> is safe to be used as long it has
+            empty intersection with the base64url alphabet.</t>
+
+            <t>It is also worth noting that the role of the framing symbol, which provides
+            an implicit length indicator for each of the atoms, is key to the correctness
+            and security of SCS.</t>
+
+            <t>This is especially relevant when the authentication tag is computed 
+            (see <xref target="sec_scs_authtag"/>).  There, the explicit inclusion of the
+            framing symbol to the HMAC input, seals the integrity of the blob as a whole,
+            together with each of its composing atoms in their exact position.</t>
+
+            <t>This feature makes the protocol robust against attacks aimed at disrupting
+            the security of SCS PDUs by freely moving boundaries between adjacent atoms.</t>
+        </section>
 
         <section anchor="sec_cipher_set" title="Cipher Set">
           <t>Implementors MUST support at least the following algorithms:
           <list style="symbols">
-              <t>AES-CBC-128 for encryption;</t>
+              <t>AES-CBC-128 for encryption <xref target="NIST-AES" />;</t>
 
               <t>HMAC-SHA1 with a 128 bit key for authenticity and
               integrity,</t>
-            </list> which appear to be sufficiently secure in a wide range of
-          use cases <xref target="Bellare"></xref>, are widely available, and
-          can be implemented in a few kilobytes of memory, providing an
-          extremely valuable feature in constrained devices.</t>
+            </list> which appear to be sufficiently secure in a broad range of
+          use cases <xref target="Bellare"></xref>, <xref target="RFC6194" />,
+          are widely available, and can be implemented in a few kilobytes of memory,
+          providing an extremely valuable feature in constrained devices.</t>
 
           <t>One should consider using larger cryptographic key lengths (192
           or 256 bit) according to the actual security and overall system
@@ -459,7 +475,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 1.  IV := RAND()
 2.  ATIME := NOW
 3.  DATA := Enc(Comp(plain-text-cookie-value), IV)
-4.  AUTHTAG := HMAC(Concat(e(DATA), e(ATIME), e(TID), e(IV)))
+4.  AUTHTAG := HMAC(Box(e(DATA), e(ATIME), e(TID), e(IV)))
                 ]]></artwork>
           </figure>
 
@@ -492,7 +508,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
           <t>Finally the SCS cookie-value is created as follows:
           <list style="empty">
-              <t>scs-cookie-value = Concat(e(DATA), e(ATIME), e(TID), e(IV), e(tag))</t>
+              <t>scs-cookie-value = Box(e(DATA), e(ATIME), e(TID), e(IV), e(tag))</t>
           </list></t>
         </section>
 
@@ -510,7 +526,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 1.      tid' := d(eTID)
 2.      If (tid' is available)
 3.          tag' := d(eAUTHTAG)
-4.          tag := HMAC(Concat(eDATA, eATIME, eTID, eIV))
+4.          tag := HMAC(Box(eDATA, eATIME, eTID, eIV))
 5.          If (tag = tag')
 6.              atime' := d(eATIME)
 7.              If (NOW - atime' <= session_max_age)
@@ -601,8 +617,8 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
           ecosystem.</t>
 
           <section anchor="sec_expires" title="Expires">
-            <t>SCS cookies MUST include an Expires attribute which shall be
-            set to a value consistent with session_max_age.</t>
+            <t>If an SCS cookie includes an Expires attribute, then the attribute
+            MUST be set to a value consistent with session_max_age.</t>
 
             <t>For maximum compatibility with existing user agents the
             timestamp value MUST be encoded in rfc1123-date format which
@@ -738,8 +754,10 @@ T  ----------------|---------------------| {no longer valid}
     </section>
 
     <section anchor="sec_ack" title="Acknowledgements">
-      <t>We would like to thank Jim Schaad, David Wagner and Lorenzo Cavallaro 
-      for their valuable feedback on this document.</t>
+      <t>We would like to thank Jim Schaad, David Wagner, Lorenzo Cavallaro,
+      Willy Tarreau, Tobias Gondrom, John Michener, Sean Turner, Barry Leiba,
+      Robert Sparks, Stephen Farrell, Stewart Bryant, and Nevil Brownlee for
+      their valuable feedback on this document.</t>
     </section>
 
     <section anchor="sec_iana" title="IANA Considerations">
@@ -796,11 +814,11 @@ T  ----------------|---------------------| {no longer valid}
           target="RFC5246">SSL/TLS</xref> or <xref
           target="RFC4301">IPsec</xref>.</t>
 
-          <t>Anyway, a generic solution is still out of scope: an SCS
-          application wishing to be replay-resistant must put in place some ad
-          hoc mechanism to prevent clients (both rogue and legitimate) from
-          (a) being able to replay old cookies as valid credentials and/or (b)
-          getting any advantage by replaying them.</t>
+          <t>Anyway, a native solution is not in scope with the security properties
+          inherent to an SCS cookie.  So, application wishing to be replay-resistant
+          must put in place some ad hoc mechanism to prevent clients (both rogue and
+          legitimate) from (a) being able to replay old cookies as valid credentials
+          and/or (b) getting any advantage by replaying them.</t>
 
           <t>In the following, some typical use cases are illustrated: <list
               style="symbols">
@@ -828,13 +846,19 @@ T  ----------------|---------------------| {no longer valid}
               nonces in RAM. Once the client presents its cookie credential,
               the embodied nonce is deleted from the list and will be
               therefore discarded whenever replayed.</t>
+
+              <t>TLS binding scenario: the Server application must run on TLS and
+              be able to extract information related to the current TLS session and
+              store them into the DATA field of the SCS cookie itself <xref target="RFC5056" />.
+              By establishing this secure channel binding prevents usage by third
+              parties and eliminates the value of the cookie after the TLS session
+              is terminated - regardless of the lifetime of the cookie.</t>
             </list></t>
 
-          <t>It may be noteworthy that despite the chances of preventing
-          replay in some well established circumstances by using
-          aforementioned mechanisms, if the attacker is able to use the cookie
-          before the legitimate client gets a chance to, then the
+          <t>It is worth noting that in all but the latter scenario, if an attacker is able 
+          to use the cookie before the legitimate client gets a chance to, then the
           impersonation attack will always succeed.</t>
+
         </section>
 
         <section anchor="sec_cookie_deletion" title="Cookie Deletion">
@@ -864,14 +888,19 @@ T  ----------------|---------------------| {no longer valid}
           <t>Just like with plain cookies, SCS doesn't prevent sharing (both 
           voluntary and illegitimate) of cookies between multiple clients.</t>
 
-          <t>In the context of voluntary cookie sharing, using HTTPS is
-          useless: Client certificates are just as shareable as cookies, hence
-          equivalently to the "server-side" cookie model, there seems to be no
-          way to prevent this threat.</t>
-
-          <t>The theft could be mitigated by securing the wire (e.g. via
+          <t>In the context of voluntary cookie sharing, using HTTPS only as a separate
+          secure transport provider is useless: in fact Client certificates are just as
+          shareable as cookies.  Instead, using some form of secure channel binding (as
+          illustrated in <xref target="sec_old_cookie_replay" />) may cancel this risk.</t>
+          
+          <t>The theft risk could be mitigated by securing the wire (e.g. via
           HTTPS, IPsec, VPN, ...), thus reducing the opportunity of cookie
           stealing to a successful attack on the protocol endpoints.</t>
+
+          <t>In order to reduce the attack window in case the cookie is stolen,
+          an application may want to generate cookies whose lifetime is upper
+          bounded by the browsing session lifetime (i.e. by not attaching an
+          Expires attribute to it.)</t>
         </section>
 
         <section anchor="session_fixation"
@@ -918,6 +947,7 @@ T  ----------------|---------------------| {no longer valid}
 
         <t>More generally no slicing nor altering operations can be done over
         an SCS PDU without controlling the cryptographic key-set.</t>
+
       </section>
     </section>
   </middle>
@@ -931,12 +961,24 @@ T  ----------------|---------------------| {no longer valid}
       &RFC2104;
       &RFC5652;
       &RFC6265;
+      &RFC6194;
+
+      <reference anchor="NIST-AES">
+        <front>
+          <title>Advanced Encryption Standard (AES)</title>
+          <author />
+          <date month="November" year="2001" />
+        </front>
+        <seriesInfo name="NIST," value="FIPS PUB 197" />
+      </reference>
+
     </references>
 
     <references title="Informative References">
       &RFC5246;
       &RFC3740;
       &RFC4301;
+      &RFC5056;
 
       <reference anchor="Bellare">
         <front>
