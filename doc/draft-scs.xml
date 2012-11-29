@@ -12,6 +12,7 @@
 <!ENTITY RFC6265 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6265.xml">
 <!ENTITY RFC6194 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6194.xml">
 <!ENTITY RFC5056 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5056.xml">
+<!ENTITY RFC2616 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2616.xml">
 ]>
 <?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
 <?rfc strict="yes" ?>
@@ -100,48 +101,47 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
-      <t>This document provides an overview of SCS, a small cryptographic 
-      protocol layered on top of the HTTP cookie facility, that allows its
-      users to produce and consume authenticated and encrypted cookies, as
-      opposed to usual cookies, which are un-authenticated and sent in
-      clear text.</t>
+      <t>SCS defines a generic, URI and HTTP header friendly envelope for
+      carrying symmetrically encrypted, authenticated, and origin-timestamped
+      tokens.</t>
 
-      <t>An interesting property, rising naturally from the given
-      confidentiality and authentication properties, is that by using SCS
-      cookies, it is possible to avoid storing the session state material on
-      the server side altogether. In fact, an SCS cookie presented by the user
-      agent to the origin server can always be validated (i.e. possibly
-      recognized as self-produced, fresh, untampered material) and, as
-      such, be used to safely restore application state.</t>
-
-      <t>Hence, typical use cases may include devices with little or no storage
-      offering some functionality via an HTTP interface, as well as web 
-      applications with high availability or load balancing requirements which 
-      would prefer to handle application state without the need to synchronize 
-      the pool through shared storage or peering.</t>
-
-      <t>Another noteworthy application scenario is represented by the
-      distribution of authorized web content (e.g. by CDNs), where an SCS token
-      can be used, either in a cookie or embedded in the URI, to provide
-      evidence of the entitlement to access the associated resource by the
-      requesting user agent.</t>
-
-      <t>Nevertheless, its security properties allow SCS to be used whenever
-      the privacy and integrity of cookies is a concern, by paying an 
-      affordable price in terms of increased cookie size, additional CPU clock 
-      cycles needed by the symmetric key encryption and HMAC algorithms, and 
-      related key management, which can be made a nearly transparent task.</t>
+      <t>SCS use cases cover a wide spectrum ranging from distribution of
+      authorised content via HTTP (e.g. with out-of-band signed URIs), to
+      securing browser sessions with diskless embedded devices (e.g. SOHO
+      routers).</t>
     </abstract>
   </front>
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
-      <t>SCS is a small cryptographic protocol layered on top of the HTTP 
-      cookie facility <xref target="RFC6265" />, that allows its
-      users to produce and consume authenticated and encrypted cookies, as
-      opposed to usual cookies, which are un-authenticated and sent in
-      clear text.</t>
+      <t>SCS defines a generic, URI and HTTP header friendly envelope for
+      carrying symmetrically encrypted, authenticated, and origin-timestamped
+      tokens.</t>
 
+      <t>It is generic in that it does not force any specific format upon the
+      authenticated information - which makes SCS tokens flexible, easy, and
+      secure to use in many different scenarios.</t>
+
+      <t>It is URI and HTTP header friendly, as it has been explicitly designed
+      to be compatible with both the ABNF "token" syntax (Section 2.2 of
+      <xref target="RFC2616" />) - e.g. the one used for Set-Cookie and Cookie
+      headers - and the path or query syntax of HTTP URIs.</t>
+
+      <t>Thus, SCS use cases cover a wide spectrum ranging from distribution of
+      authorised content via HTTP (e.g. with out-of-band signed URIs), to
+      securing browser sessions with diskless embedded devices (e.g. SOHO
+      routers).</t>
+
+      <t>When SCS tokens are used to implement client mode cookie sessions, the
+      SCS implementer must fully understand the security implications entailed
+      by the act of delegating the whole application state to the client
+      (browser).  In this regard, some hopefully useful security considerations
+      have been collected in <xref target="sec_impact_of_scs_cookie_model" />.
+      Please note that they may be not covering all the possible scenario though,
+      and must therefore be weighted carefully against the specific application
+      threat model.</t>
+
+<!--
       <t>By having a non-tamperable proof of authorship attached, each SCS
       cookie can always be validated by the originator, making it possible for
       a server to handle clients' session state without the need to store 
@@ -156,7 +156,7 @@
       <t>The no-storage requirement, which is the key design constraint of
       SCS, makes it an ideal candidate in the following settings: <list
           style="letters">
-          <t>devices with little or no storage -- typically embedded devices
+          <t>devices with little or no storage - typically embedded devices
           which provide functionality such as software updates, configuration,
           device monitoring, etc. via an HTTP interface;</t>
 
@@ -172,7 +172,7 @@
       In the "server-side" model, the server acts a triple role as the 
       "generator", the "owner", and the "verifier" of cookie credentials.
       Instead, a server implementing SCS in no-storage mode, acts the 
-      "generator" and "verifier" roles only -- the "owner" being inapplicable 
+      "generator" and "verifier" roles only - the "owner" being inapplicable 
       for obvious reasons.</t>
 
       <t>In all respects, the Server grants the custody of the generated
@@ -181,10 +181,10 @@
       The consequences of such discrepancy (e.g. deliberate deletion of a 
       cookie, explicit privilege revocation, etc.) will be analyzed in 
       <xref target="sec_impact_of_scs_cookie_model"></xref>.</t>
-
-      <t>An SCS server can be implemented within a web application by means of
+-->
+      <t>An SCS server may be implemented within a web application by means of
       a user library that exposes the core SCS functionality and leaves explicit
-      control over SCS cookies to the programmer, or transparently, by hiding, 
+      control over SCS tokens to the programmer, or transparently, by hiding, 
       for example, a "diskless session" facility behind a generic session API 
       abstraction.  SCS implementers are free to choose the model that best 
       suites their needs.</t>
@@ -217,7 +217,7 @@
       The single requirement for client-side support of SCS is cookie
       activation on the user agent.  The origin server is sole actor involved in
       the PDU manipulation process, which greatly simplifies the crypto
-      operations -- especially key management, which is usually a pesky
+      operations - especially key management, which is usually a pesky
       task.</t>
 
       <t>In the following sections we assume S to be one or more
@@ -322,10 +322,15 @@ eAUTHTAG          = 1*base64url-character
           provides a unique external identifier for each transform set shared 
           amongst pool members.</t>
 
-          <t>Please note that the said mechanism may safely downgrade to a 
-          periodic key-refresh in case there is one only server in the pool and
-          key is generated in place -- i.e. it is not handled from an external 
-          source.</t>
+          <t>Said mechanism may safely downgrade to a periodic key-refresh in
+          case there is one only server in the pool and key is generated in
+          place - i.e. it is not handled from an external source.</t>
+
+          <t>However, when many servers act concurrently into the same pool, a
+          more sophisticated protocol, whose specification is out of the scope
+          of the present document, must be devised (ideally one that is able to
+          handle key agreement for dynamic peer groups in a secure and efficient
+          way, e.g. <xref target="CLIQUES" />, <xref target="Steiner-GDH" />).</t>
         </section>
 
         <!-- end of TID -->
@@ -488,7 +493,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
           the server clock (step 2.).</t>
 
           <t>Since the only user of the ATIME field is the server, it is
-          unnecessary for it to be synchronized with the client -- though
+          unnecessary for it to be synchronized with the client - though
           it needs to use a fairly stable clock.  However, if multiple servers 
           are active in a load-balancing configuration, clocks SHOULD be 
           synchronized to avoid errors in the calculation of session expiry.</t>
@@ -498,7 +503,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
           <t>If the length of (compressed) state is not a multiple of the
           block size, its value MUST be filled with as many padding bytes of
-          equal value as the pad length -- as defined by the scheme given in
+          equal value as the pad length - as defined by the scheme given in
           Section 6.3 of <xref target="RFC5652"></xref>.</t>
 
           <t>Then the authentication tag, which encompasses each SCS field
@@ -724,7 +729,7 @@ T  ----------------|---------------------| {no longer valid}
       <t>As far as the latter is concerned, SCS does not mandate the use of any
       specific key sharing mechanism, and will keep working correctly as long
       as said mechanism is able to provide a single, coherent, view of the keys
-      shared by pool members -- while conforming to the recommendations given
+      shared by pool members - while conforming to the recommendations given
       in this section.</t>
     </section>
 
@@ -972,6 +977,7 @@ T  ----------------|---------------------| {no longer valid}
   <back>
     <references title="Normative References">
       &RFC2119;
+      &RFC2616;
       &RFC4648;
       &RFC1951;
       &RFC4086;
@@ -1033,8 +1039,27 @@ T  ----------------|---------------------| {no longer valid}
           <date year="2002" />
         </front>
       </reference>
-    </references>
 
+      <reference anchor="Steiner-GDH">
+        <front>
+          <title>Diffie-Hellman Key Distribution Extended to Group Communication</title>
+          <author initials="M." surname="Steiner"></author>
+          <author initials="G." surname="Tsudik"></author>
+          <author initials="M." surname="Waidner"></author>
+          <date year="1996" />
+        </front>
+      </reference>
+
+      <reference anchor="CLIQUES">
+        <front>
+          <title>Cliques: A New Approach to Group Key Agreement</title>
+          <author initials="M." surname="Steiner"></author>
+          <author initials="G." surname="Tsudik"></author>
+          <author initials="M." surname="Waidner"></author>
+          <date year="1996" />
+        </front>
+      </reference>
+    </references>
 
     <section anchor="examples" title="Examples">
       <t>The examples in this section have been created using the 'scs' test 
