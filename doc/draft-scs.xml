@@ -330,7 +330,7 @@ eAUTHTAG          = 1*base64url-character
           more sophisticated protocol, whose specification is out of the scope
           of the present document, must be devised (ideally one that is able to
           handle key agreement for dynamic peer groups in a secure and efficient
-          way, e.g. <xref target="CLIQUES" />, <xref target="Steiner-GDH" />).</t>
+          way, e.g. <xref target="CLIQUES" />, <xref target="Steiner" />).</t>
         </section>
 
         <!-- end of TID -->
@@ -1040,7 +1040,7 @@ T  ----------------|---------------------| {no longer valid}
         </front>
       </reference>
 
-      <reference anchor="Steiner-GDH">
+      <reference anchor="Steiner">
         <front>
           <title>Diffie-Hellman Key Distribution Extended to Group Communication</title>
           <author initials="M." surname="Steiner"></author>
