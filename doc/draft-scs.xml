@@ -101,7 +101,7 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
-      <t>SCS defines a generic, URI and HTTP header friendly envelope for
+      <t>SCS defines a generic URI and HTTP header friendly envelope for
       carrying symmetrically encrypted, authenticated, and origin-timestamped
       tokens.</t>
 
@@ -114,7 +114,7 @@
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
-      <t>SCS defines a generic, URI and HTTP header friendly envelope for
+      <t>SCS defines a generic URI and HTTP header friendly envelope for
       carrying symmetrically encrypted, authenticated, and origin-timestamped
       tokens.</t>
 
@@ -137,8 +137,8 @@
       by the act of delegating the whole application state to the client
       (browser).  In this regard, some hopefully useful security considerations
       have been collected in <xref target="sec_impact_of_scs_cookie_model" />.
-      Please note that they may be not covering all the possible scenario though,
-      and must therefore be weighted carefully against the specific application
+      Please note that they may not cover all possible scenario though, and
+      must therefore be weighed carefully against the specific application
       threat model.</t>
 
 <!--
@@ -184,10 +184,10 @@
 -->
       <t>An SCS server may be implemented within a web application by means of
       a user library that exposes the core SCS functionality and leaves explicit
-      control over SCS tokens to the programmer, or transparently, by hiding, 
-      for example, a "diskless session" facility behind a generic session API 
-      abstraction.  SCS implementers are free to choose the model that best 
-      suites their needs.</t>
+      control over SCS tokens to the programmer, or transparently, for example
+      by hiding a "diskless session" facility behind a generic session API
+      abstraction.  SCS implementers are free to choose the model that best
+      suits their needs.</t>
     </section>
 
     <section title="Requirements Language">
@@ -206,7 +206,7 @@
           and verification (<xref target="sec_crypto_transform"></xref>);</t>
 
           <t>the HTTP-based PDU exchange (<xref
-          target="sec_pdu_exchange"></xref>).</t>
+          target="sec_pdu_exchange"></xref>);</t>
 
           <t>the underlying key management model (<xref
           target="sec_key_management"></xref>).</t>
@@ -215,9 +215,9 @@
       <t>Note that the PDU is transmitted to the client as an opaque data
       block, hence no interpretation nor validation is necessary.
       The single requirement for client-side support of SCS is cookie
-      activation on the user agent.  The origin server is sole actor involved in
-      the PDU manipulation process, which greatly simplifies the crypto
-      operations - especially key management, which is usually a pesky
+      activation on the user agent.  The origin server is the sole actor
+      involved in the PDU manipulation process, which greatly simplifies the
+      crypto operations - especially key management, which is usually a pesky
       task.</t>
 
       <t>In the following sections we assume S to be one or more
@@ -261,19 +261,19 @@ eAUTHTAG          = 1*base64url-character
         <!-- hex or decimal ? -->
           <t>Absolute timestamp relating to the last read or write operation 
           performed on session DATA, encoded as a HEX string holding the number
-          of seconds since UNIX epoch (i.e. since 00:00:00, Jan 1 1970.)</t>
+          of seconds since the UNIX epoch (i.e. since 00:00:00, Jan 1
+          1970.)</t>
 
           <t>This value is updated with each client contact and is used to
           identify expired sessions.  If the delta between the received ATIME 
-          value and the current time on S, is larger than a predefined
+          value and the current time on S is larger than a predefined
           "session_max_age" (which is chosen by S as an application-level
           parameter), a session is considered to be no longer valid, and
           is therefore rejected.</t>
 
-          <t>Such an expiration error may be used to force user logout from 
-          an SCS cookie based session, or hooked in the web application logics
-          to the display of a HTML form asking re-validation of user 
-          credentials.</t>
+          <t>Such expiration error may be used to force user logout from an SCS
+          cookie based session, or hooked in the web application logic to
+          display an HTML form requiring re-validation of user credentials.</t>
         </section>
 
         <!-- end of ATIME -->
@@ -281,10 +281,10 @@ eAUTHTAG          = 1*base64url-character
         <section anchor="sec_scs_data" title="DATA">
           <t>Block of encrypted and optionally compressed data, possibly
           containing the current session state.  Note that no restriction is 
-          imposed on clear text structure: the protocol is completely agnostic 
+          imposed on the clear text structure: the protocol is completely agnostic 
           as to inner data layout.</t>
           <t>Generally speaking, the plain text is the "normal" cookie that
-          would have been exchanged by S and C if SCS wasn't used.</t>
+          would have been exchanged by S and C if SCS had not been used.</t>
 
 
 <!-- TODO data split across many SCS cookies TODO
@@ -322,11 +322,11 @@ eAUTHTAG          = 1*base64url-character
           provides a unique external identifier for each transform set shared 
           amongst pool members.</t>
 
-          <t>Said mechanism may safely downgrade to a periodic key-refresh in
-          case there is one only server in the pool and key is generated in
-          place - i.e. it is not handled from an external source.</t>
+          <t>Such mechanism may safely downgrade to a periodic key-refresh if
+          there is only one server in the pool and the key is generated in
+          place - i.e. it is not handled by an external source.</t>
 
-          <t>However, when many servers act concurrently into the same pool, a
+          <t>However, when many servers act concurrently upon the same pool, a
           more sophisticated protocol, whose specification is out of the scope
           of the present document, must be devised (ideally one that is able to
           handle key agreement for dynamic peer groups in a secure and efficient
@@ -395,7 +395,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
             <t>Box(): string boxing function. It takes an arbitrary
             number of base64url encoded strings and returns the string obtained
-            by juxtaposing each of the inputs in the exact order in which they
+            by concatenating each of the inputs in the exact order in which they
             are listed, separated by the "|" char.  For example:
             <list style="empty">
               <t>Box("akxI", "MTM", "Hadvo") = "akxI|MTM|Hadvo".</t>
@@ -413,9 +413,10 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
             and security of SCS.</t>
 
             <t>This is especially relevant when the authentication tag is computed 
-            (see <xref target="sec_scs_authtag"/>).  There, the explicit inclusion of the
-            framing symbol to the HMAC input, seals the integrity of the blob as a whole,
-            together with each of its composing atoms in their exact position.</t>
+            (see <xref target="sec_scs_authtag"/>).  More specifically, the
+            explicit inclusion of the framing symbol within the HMAC input seals
+            the integrity of the blob as a whole together with each of its
+            composing atoms in their exact position.</t>
 
             <t>This feature makes the protocol robust against attacks aimed at disrupting
             the security of SCS PDUs by freely moving boundaries between adjacent atoms.</t>
@@ -431,7 +432,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
             </list> which appear to be sufficiently secure in a broad range of
           use cases <xref target="Bellare"></xref>, <xref target="RFC6194" />,
           are widely available, and can be implemented in a few kilobytes of memory,
-          providing an extremely valuable feature in constrained devices.</t>
+          providing an extremely valuable feature for constrained devices.</t>
 
           <t>One should consider using larger cryptographic key lengths (192
           or 256 bit) according to the actual security and overall system
@@ -464,7 +465,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
           target="RFC4648">Base-64</xref>.  This encoding is very wide-spread,
           falls smoothly into the encoding rules defined in Section 4.1.1 of
           <xref target="RFC6265"></xref>, and can be safely used to supply
-          SCS based authorization tokens within an URI (e.g. in a query string
+          SCS based authorization tokens within a URI (e.g. in a query string
           or straight into a path segment).</t>
         </section>
 
@@ -521,9 +522,9 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
 
         <section anchor="sec_inbound_transform" title="Inbound Transform">
           <t>The inbound transformation is described in <xref
-          target="fig_inbound_transform"></xref>.  In it, each of the
-          'e'-prefixed names has to be interpreted as the base64url encoded
-          value of the corresponding SCS field.</t>
+          target="fig_inbound_transform"></xref>.  Each of the 'e'-prefixed
+          names shown has to be interpreted as the base64url encoded value of
+          the corresponding SCS field.</t>
 
           <figure anchor="fig_inbound_transform">
             <artwork align="center"><![CDATA[
@@ -575,10 +576,10 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
           compared to the maximum time-to-live defined by the session_max_age 
           parameter.</t>
 
-          <t>In case the "age" check is passed, the DATA and IV fields are
-          finally decoded (step 8.), so that the original plain text data can 
-          be extracted from the encrypted and optionally compressed blob 
-          (step 9.).</t>
+          <t>If the "age" check passes, the DATA and IV fields are finally
+          decoded (step 8.), so that the original plain text data can be
+          extracted from the encrypted and optionally compressed blob (step
+          9.).</t>
 
           <t>Note that steps 5. and 7. allow any altered packets or expired
           sessions to be discarded, hence avoiding unnecessary state decryption
@@ -728,7 +729,7 @@ T  ----------------|---------------------| {no longer valid}
       
       <t>As far as the latter is concerned, SCS does not mandate the use of any
       specific key sharing mechanism, and will keep working correctly as long
-      as said mechanism is able to provide a single, coherent, view of the keys
+      as the said mechanism is able to provide a single, coherent, view of the keys
       shared by pool members - while conforming to the recommendations given
       in this section.</t>
     </section>
@@ -736,11 +737,11 @@ T  ----------------|---------------------| {no longer valid}
     <section anchor="scs_inflation" title="Cookie Size Considerations">
 
       <t>In general, SCS cookies are bigger than their plain text counterparts.
-      This is due to a couple of different factors: 
+      This is due to the following reasons: 
       <list style="symbols">
-        <t>inflation of the Base-64 encoding of the state data (approx. 
-        1.4 times the original size, including the encryption padding), and</t> 
-        <t>the fixed size increment (approx. 80/90 bytes) due to SCS fields and 
+        <t>inflation of the Base-64 encoding of state data (approx. 
+        1.4 times the original size, including the encryption padding);</t> 
+        <t>the fixed size increment (approx. 80/90 bytes) caused by SCS fields and 
         framing overhead.</t>
       </list></t>
       <t>While the former is a price the user must always pay proportionally
@@ -749,7 +750,7 @@ T  ----------------|---------------------| {no longer valid}
       becomes big enough.</t>
 
       <t>The following table compares byte lengths of SCS cookies (with a four
-      bytes' TID) and corresponding plain text cookies in a worst case scenario,
+      byte TID) and corresponding plain text cookies in a worst case scenario,
       i.e. when no compression is in use (or applicable).
       <figure>
         <artwork align="center"><![CDATA[
@@ -830,8 +831,8 @@ T  ----------------|---------------------| {no longer valid}
           target="RFC5246">SSL/TLS</xref> or <xref
           target="RFC4301">IPsec</xref>.</t>
 
-          <t>Anyway, a native solution is not in scope with the security properties
-          inherent to an SCS cookie.  So, application wishing to be replay-resistant
+          <t>A native solution is not in scope with the security properties
+          inherent to an SCS cookie.  Hence, application wishing to be replay-resistant
           must put in place some ad hoc mechanism to prevent clients (both rogue and
           legitimate) from (a) being able to replay old cookies as valid credentials
           and/or (b) getting any advantage by replaying them.</t>
@@ -864,15 +865,15 @@ T  ----------------|---------------------| {no longer valid}
               therefore discarded whenever replayed.</t>
 
               <t>TLS binding scenario: the Server application must run on TLS,
-              and be able to extract information related to the current TLS session and
-              store them into the DATA field of the SCS cookie itself <xref target="RFC5056" />.
+              be able to extract information related to the current TLS session, and
+              store it in the DATA field of the SCS cookie itself <xref target="RFC5056" />.
               The establishment of this secure channel binding prevents any third party 
-              to reuse the SCS cookie, and drops its value altogether after the TLS session
+              from reusing the SCS cookie, and drops its value altogether after the TLS session
               is terminated - regardless of the lifetime of the cookie.  This approach
-              suffers a scalability problem in that it requires each SCS session being
+              suffers a scalability problem in that it requires each SCS session to be
               handled by the same client-server pair.  However, it provides
               a robust model and an affordable compromise when security of the session
-              is exceptionally valuable (e.g. an user interacting with its online
+              is exceptionally valuable (e.g. a user interacting with his/her online
               banking site).</t>
 
             </list></t>
@@ -894,8 +895,8 @@ T  ----------------|---------------------| {no longer valid}
               capability - the possession of which increases the client's
               powers;</t>
 
-              <t>It is not safe to use the cookie to represent negative
-              capabilities - where possession reduces the client's powers-, or
+              <t>it is not safe to use the cookie to represent negative
+              capabilities - where possession reduces the client's powers - or
               for revocation.</t>
             </list></t>
 
@@ -911,18 +912,18 @@ T  ----------------|---------------------| {no longer valid}
           voluntary and illegitimate) of cookies between multiple clients.</t>
 
           <t>In the context of voluntary cookie sharing, using HTTPS only as a separate
-          secure transport provider is useless: in fact Client certificates are just as
+          secure transport provider is useless: in fact, Client certificates are just as
           shareable as cookies.  Instead, using some form of secure channel binding (as
           illustrated in <xref target="sec_old_cookie_replay" />) may cancel this risk.</t>
           
-          <t>The theft risk could be mitigated by securing the wire (e.g. via
-          HTTPS, IPsec, VPN, ...), thus reducing the opportunity of cookie
-          stealing to a successful attack on the protocol endpoints.</t>
+          <t>The risk of theft could be mitigated by securing the wire (e.g.
+                  via HTTPS, IPsec, VPN, ...), thus reducing the opportunity of
+          cookie stealing to a successful attack on the protocol endpoints.</t>
 
-          <t>In order to reduce the attack window in case the cookie is stolen,
-          an application may want to generate cookies whose lifetime is upper
+          <t>In order to reduce the attack window on stolen cookies, an
+          application may choose to generate cookies whose lifetime is upper
           bounded by the browsing session lifetime (i.e. by not attaching an
-          Expires attribute to it.)</t>
+          Expires attribute to them.)</t>
         </section>
 
         <section anchor="session_fixation"
@@ -931,15 +932,15 @@ T  ----------------|---------------------| {no longer valid}
           <t>Session fixation vulnerabilities <xref target="Kolsec" />
           are not addressed by SCS.</t>
 
-          <t>A more sophisticated protocol involving an active participation 
-          by the UA in the SCS cookie manipulation would be needed: e.g. some
-          form of challange-response exchange initiated by the Server on the 
-          HTTP response and replied by the UA on the next chained HTTP 
+          <t>A more sophisticated protocol involving active participation of
+          the UA in the SCS cookie manipulation process would be needed: e.g.
+          some form of challange-response exchange initiated by the Server in
+          the HTTP response and replied to by the UA in the next chained HTTP
           request.</t>
 
-          <t>Unfortunately the present specification which bases on 
+          <t>Unfortunately the present specification which is based on 
           <xref target="RFC6265" /> sees the UA as a completely passive 
-          character, whose role is to blindly paste the cookie value set 
+          actor, whose role is to blindly paste the cookie value set 
           by the Server.</t>
 
           <t>Nevertheless, the SCS cookies wrapping mechanism may be used 
@@ -958,16 +959,16 @@ T  ----------------|---------------------| {no longer valid}
         good reasons to consider its security level enhanced.</t>
 
         <t>First of all, the confidentiality and authentication features 
-        provided by SCS protects the cookie-value which is normally plain text
+        provided by SCS protect the cookie-value which is normally plain text
         and tamperable.</t>
 
-        <t>Furthermore, none of the common vulnerabilities of server-side 
-        sessions (SID prediction, SID brute forcing) can be exploited when 
+        <t>Furthermore, neither of the common vulnerabilities of server-side 
+        sessions (SID prediction and SID brute forcing) can be exploited when 
         using SCS, unless the attacker possesses encryption and HMAC keys 
         (both current ones and those relating to the previous set of 
         credentials).</t>
 
-        <t>More generally no slicing nor altering operations can be done over
+        <t>More in general, no slicing nor altering operations can be done over
         an SCS PDU without controlling the cryptographic key-set.</t>
 
       </section>
