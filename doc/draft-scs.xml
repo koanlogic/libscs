@@ -655,7 +655,7 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
             carried over a TLS channel.</t>
           </section>
 
-          <section anchor="sec_secure" title="HttpOnly">
+          <section anchor="sec_httponly" title="HttpOnly">
             <t>This attribute SHOULD always be asserted.</t>
           </section>
 
