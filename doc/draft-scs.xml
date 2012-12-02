@@ -101,20 +101,24 @@
     <keyword>HTTP Secure Cookies</keyword>
 
     <abstract>
-      <t>SCS defines a generic URI and HTTP header friendly envelope for
+      <t>This memo defines a generic URI and HTTP header friendly envelope for
       carrying symmetrically encrypted, authenticated, and origin-timestamped
-      tokens.</t>
+      tokens.  It also describes one possible usage of such tokens via a simple
+      protocol based on HTTP cookies.</t>
 
-      <t>SCS use cases cover a wide spectrum ranging from distribution of
-      authorised content via HTTP (e.g. with out-of-band signed URIs), to
-      securing browser sessions with diskless embedded devices (e.g. SOHO
-      routers).</t>
+      <t>SCS use cases cover a wide spectrum of applications, ranging from
+      distribution of authorised content via HTTP (e.g. with out-of-band signed
+      URIs), to securing browser sessions with diskless embedded devices (e.g.
+      SOHO routers), or web servers with high availability or load
+      balancing requirements that may want to delegate the handling of the
+      application state to clients instead of using shared storage or
+      forced peering.</t>
     </abstract>
   </front>
 
   <middle>
     <section anchor="sec_intro" title="Introduction">
-      <t>SCS defines a generic URI and HTTP header friendly envelope for
+      <t>This memo defines a generic URI and HTTP header friendly envelope for
       carrying symmetrically encrypted, authenticated, and origin-timestamped
       tokens.</t>
 
@@ -123,21 +127,23 @@
       secure to use in many different scenarios.</t>
 
       <t>It is URI and HTTP header friendly, as it has been explicitly designed
-      to be compatible with both the ABNF "token" syntax (Section 2.2 of
-      <xref target="RFC2616" />) - e.g. the one used for Set-Cookie and Cookie
-      headers - and the path or query syntax of HTTP URIs.</t>
+      to be compatible with both the ABNF "token" syntax <xref target="RFC2616"
+      /> (the one used for e.g. Set-Cookie and Cookie headers), and the path or
+      query syntax of HTTP URIs.</t>
 
-      <t>Thus, SCS use cases cover a wide spectrum ranging from distribution of
-      authorised content via HTTP (e.g. with out-of-band signed URIs), to
-      securing browser sessions with diskless embedded devices (e.g. SOHO
-      routers).</t>
+      <t>This memo also describes one possible usage of such tokens via a
+      simple protocol based on HTTP cookies that allows to establish "client
+      mode" sessions.  This is not their sole possible usage, and while no
+      other operational patterns are outlined here, it is expected that SCS
+      tokens may be easily employed as a building block for other kind of HTTP
+      based applications that need to carry in-band secured information.</t>
 
       <t>When SCS tokens are used to implement client mode cookie sessions, the
       SCS implementer must fully understand the security implications entailed
       by the act of delegating the whole application state to the client
       (browser).  In this regard, some hopefully useful security considerations
       have been collected in <xref target="sec_impact_of_scs_cookie_model" />.
-      Please note that they may not cover all possible scenario though, and
+      Please note that they may not cover all possible scenarios though, and
       must therefore be weighed carefully against the specific application
       threat model.</t>
 
@@ -205,8 +211,8 @@
           <t>the cryptographic transformations involved in SCS cookie creation 
           and verification (<xref target="sec_crypto_transform"></xref>);</t>
 
-          <t>the HTTP-based PDU exchange (<xref
-          target="sec_pdu_exchange"></xref>);</t>
+          <t>the HTTP-based PDU exchange that uses the Set-Cookie and Cookie
+          HTTP headers (<xref target="sec_pdu_exchange"></xref>);</t>
 
           <t>the underlying key management model (<xref
           target="sec_key_management"></xref>).</t>
