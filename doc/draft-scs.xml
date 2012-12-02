@@ -107,7 +107,7 @@
       protocol based on HTTP cookies.</t>
 
       <t>SCS use cases cover a wide spectrum of applications, ranging from
-      distribution of authorised content via HTTP (e.g. with out-of-band signed
+      distribution of authorized content via HTTP (e.g. with out-of-band signed
       URIs), to securing browser sessions with diskless embedded devices (e.g.
       SOHO routers), or web servers with high availability or load
       balancing requirements that may want to delegate the handling of the
@@ -653,6 +653,10 @@ AUTHTAG = HMAC(base64url(DATA)  "|"
           <section anchor="sec_secure" title="Secure">
             <t>This attribute MUST always be asserted when SCS sessions are
             carried over a TLS channel.</t>
+          </section>
+
+          <section anchor="sec_secure" title="HttpOnly">
+            <t>This attribute SHOULD always be asserted.</t>
           </section>
 
         </section>
